@@ -1,0 +1,239 @@
+{{- if .Values.templates.settlement -}}
+
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: {{- printf "%s-%s" .Release.Name "settlement" | trimPrefix "-" }}
+spec:
+  endpoint:
+    path: /settlement
+    params:
+      - name: settlementId
+        required: true
+      - name: currency
+  queries:
+    - name: settlementId
+      query: SELECT :settlementId
+    - name: transfers
+      query: |
+        SELECT
+            p2.name as sender,
+            p2.participantId as senderId,
+            receiverId,
+            SUM(amount) as amount,
+            settlementId,
+            ss.createdDate,
+            MAX(lastActionDate) as lastActionDate,
+            currencyId,
+            MAX(currencyScale) as currencyScale
+          FROM
+              participant p2 LEFT JOIN
+              (
+                  SELECT settlementId,
+                         createdDate,
+                         MAX(lastActionDate) as lastActionDate,
+                         senderId,
+                         receiverId,
+                         SUM(amount)         as amount,
+                         currencyId,
+                         MAX(currencyScale) as currencyScale
+                  FROM (
+                           SELECT MAX(CASE WHEN tP.amount > 0 THEN p.participantId END) as senderId,
+                                  MAX(CASE WHEN tP.amount < 0 THEN p.participantId END) as receiverId,
+                                  MAX(tP.amount)                               as amount,
+                                  MAX(tF.completedDate)                        as lastActionDate,
+                                  s.settlementId,
+                                  s.createdDate,
+                                  c.currencyId as currencyId,
+                                  MAX(c.scale) as currencyScale
+                           FROM transferParticipant tP
+                                    INNER JOIN transferFulfilment tF on tP.transferId = tF.transferId
+                                    INNER JOIN settlementSettlementWindow sSW
+                                               on tF.settlementWindowId = sSW.settlementWindowId
+                                    INNER JOIN settlementWindowStateChange sWSC
+                                               on sSW.settlementWindowId = sWSC.settlementWindowId
+                                    INNER JOIN settlement s on sSW.settlementId = s.settlementId
+                                    INNER JOIN participantCurrency pC
+                                               on tP.participantCurrencyId = pC.participantCurrencyId
+                                    INNER JOIN currency c on c.currencyId = pC.currencyId
+                                    INNER JOIN participant p on pC.participantId = p.participantId
+                           WHERE tF.isValid
+                             AND sWSC.settlementWindowStateId = 'CLOSED'
+                             AND s.settlementId = :settlementId
+                             AND CASE WHEN :currency IS NOT NULL THEN c.currencyId = :currency ELSE TRUE END
+                           GROUP BY tF.transferId, s.settlementId, c.currencyId
+                       ) s
+                  GROUP BY senderId, receiverId, settlementId, currencyId
+              ) ss ON p2.participantId = ss.senderId
+
+          WHERE p2.name != 'Hub'
+          GROUP BY settlementId, p2.participantId, receiverId, currencyId
+          ORDER BY settlementId DESC, p2.name
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <style>
+            table {
+                font-family: arial, sans-serif;
+                border-collapse: collapse;
+                width: 100%;
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            td, th {
+    //            border: 1px solid #efefef;
+                text-align: left;
+                padding: 8px;
+            }
+
+            tr:nth-child(even) {
+    //            background-color: #efefef;
+            }
+
+            td > span {
+                font-weight: bold;
+            }
+        </style>
+        <title>Settlement Bank Report</title>
+    </head>
+    <body>
+
+    <%
+    const senders = [];
+    const receivers = [];
+    const amounts = {};
+    const totalSent = {};
+    const totalReceived = {};
+    const participants = {};
+    let netTotal = 0;
+    const netPositionsPretty = {};
+    const defaultCurrency = transfers[0]?.currencyId;
+    for (let t of transfers) {
+        participants[t.senderId] = t.sender;
+        if (!senders.includes(t.senderId)) {
+            senders.push(t.senderId);
+        }
+        if (t.receiverId && t.currencyId === defaultCurrency) {
+            amounts[`${t.senderId}:${t.receiverId}`] = parseFloat(t.amount);
+            totalSent[t.senderId] = (totalSent[t.senderId] || 0) + parseFloat(t.amount);
+            totalReceived[t.receiverId] = (totalReceived[t.receiverId] || 0) + parseFloat(t.amount);
+            if (!receivers.includes(t.receiverId)) {
+                receivers.push(t.receiverId);
+            }
+        }
+    }
+    const participantEntries = Object.entries(participants).sort((a, b) => a[1].localeCompare(b[1]));
+
+    const formatAmount = (amount) => {
+          const v = parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: transfers[0]?.currencyScale });
+          return `${v} ${transfers[0]?.currencyId}`;
+    }
+
+    for(let [id] of participantEntries) {
+        let v = ((totalSent[id] || 0) - (totalReceived[id] || 0));
+        netTotal += v;
+        let vf = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: transfers[0]?.currencyScale });
+        netPositionsPretty[id] = v >= 0 ? `${vf} ${transfers[0]?.currencyId}` : `(${vf}) ${transfers[0]?.currencyId}`;
+    }
+
+    const lastActionDate = transfers.filter(a => a.lastActionDate)
+                              .reduce((a,b) => a.lastActionDate.getTime() > b.lastActionDate.getTime() ? a : b)?.lastActionDate;
+
+    const jsonOutput = {
+      settlementId: transfers[0]?.settlementId,
+      currency: transfers[0]?.currencyId,
+      createdDate:transfers[0]?.createdDate,
+      lastActionDate,
+      totalSent: participantEntries
+                  .reduce((acc, [id, name]) => Object.assign(acc, { [name]: totalSent[id] || 0 }), {}),
+      totalReceived,
+      netPositions: netPositionsPretty,
+      participants: participantEntries,
+    };
+    %>
+
+    <table data-json="<%= JSON.stringify(transfers) %>" >
+        <tr>
+            <td><span>Settlement ID</span></td>
+            <td style="text-align: right"><%= transfers[0]?.settlementId %></td>
+            <td></td>
+            <td><span>Created Date</span></td>
+            <td colspan="2" style="text-align: right"><%= transfers[0] && (d = transfers[0].createdDate, `${d.toLocaleDateString('en-ZA')} ${d.toLocaleTimeString('en-US')}`)%></td>
+        </tr>
+        <tr>
+            <td><span>Currency</span></td>
+            <td style="text-align: right"><%= transfers[0]?.currencyId %></td>
+            <td></td>
+            <td><span>Last Action Date</span></td>
+            <td colspan="2" style="text-align: right"><%=
+                `${lastActionDate.toLocaleDateString('en-ZA')} ${lastActionDate.toLocaleTimeString('en-US')}`
+                %></td>
+        </tr>
+        <tr>
+            <td colspan="100%" style="padding-top: 20px"><div style="font-weight: bold">Multilateral Net Positions</div></td>
+        </tr>
+        <tr>
+            <th></th>
+            <th></th>
+            <% for(let i = 0; i < participantEntries.length; i++) { %>
+            <th><span>Received by</span></th>
+            <% } %>
+            <th>TOTAL SENT</th>
+        </tr>
+        <tr>
+            <td></td>
+            <td></td>
+            <% for(let [id, name] of participantEntries) { %>
+                <td><%= `${id} ${name}` %></td>
+            <% } %>
+            <td></td>
+        </tr>
+        <% for(let [senderId, senderName] of participantEntries) { %>
+            <tr>
+                <td><span>Sent by</span></td>
+                <td><%= `${senderId} ${senderName}` %></td>
+                <% for(let [receiverId] of participantEntries) { %>
+                    <% if (senderId === receiverId) { %>
+                        <td style="background-color: #cccccc"></td>
+                    <% } else if (amounts[`${senderId}:${receiverId}`]) { %>
+                        <td style="text-align: right"><%= formatAmount(amounts[`${senderId}:${receiverId}`]) %></td>
+                    <% } else { %>
+                        <td style="text-align: right">-</td>
+                    <% } %>
+                <% } %>
+                <td style="text-align: right"><%= totalSent[senderId] ? formatAmount(totalSent[senderId]) : '-' %></td>
+            </tr>
+        <% } %>
+        <tr>
+            <td colspan="100%" style="padding-top: 10px"></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><span>Total Received</span></td>
+            <% for(let [id] of participantEntries) { %>
+                <td style="text-align: right"><%= totalReceived[id] ? totalReceived[id].toLocaleString('en-US') : '-' %></td>
+            <% } %>
+        </tr>
+        <tr>
+            <td colspan="100%" style="padding-top: 30px"><div style="font-weight: bold">Aggregated Net Positions</div></td>
+        </tr>
+        <% for(let [id, name] of participantEntries) { %>
+            <tr>
+                <td><%= `${id} ${name}` %></td>
+                <td style="text-align: right"><%= netPositionsPretty[id] %></td>
+                <td></td>
+            </tr>
+        <% } %>
+        <tr>
+            <td style="padding-top: 30px">Check value</td>
+            <td style="text-align: right"><%= netTotal %></td>
+            <td>(should be zero)</td>
+        </tr>
+    </table>
+    </body>
+    </html>
+
+{{- end }}

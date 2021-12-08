@@ -1,0 +1,163 @@
+{{- if .Values.templates.reconciliationAmount -}}
+
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: {{- printf "%s-%s" .Release.Name "reconciliation-amount" | trimPrefix "-" }}
+spec:
+  endpoint:
+    path: /reconciliationAmount
+    params:
+      - name: settlementWindowId
+        required: true
+      - name: dfspId
+        required: true
+  queries:
+    - name: report
+      query: |
+        SELECT
+          fromName,
+          fromId,
+          toName,
+          toId,
+          currency,
+          numTransactions,
+          TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM sent)) AS sent,
+          TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM received)) AS received,
+          TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM net)) AS net,
+          settlementWindowOpen,
+          settlementWindowClose
+        FROM (
+          SELECT
+            payer.name AS fromName,
+            payer.participantId AS fromId,
+            payee.name AS toName,
+            payee.participantId AS toId,
+            pcPayer.currencyId AS currency,
+            COUNT(txpPayer.transferId) AS numTransactions,
+            CASE WHEN payer.participantId = :dfspId THEN sum(txpPayer.amount) ELSE 0 END AS sent,
+            CASE WHEN payer.participantId = :dfspId THEN 0 ELSE sum(txpPayer.amount) END AS received,
+            CASE WHEN payer.participantId = :dfspId THEN -sum(txpPayer.amount) ELSE sum(txpPayer.amount) END AS net,
+            swOpen.createdDate AS settlementWindowOpen,
+            swClose.createdDate AS settlementWindowClose
+          FROM
+            transferParticipant txpPayer
+          INNER JOIN
+            transferParticipant txpPayee
+            ON txpPayer.transferId = txpPayee.transferId
+            AND txpPayer.transferParticipantId != txpPayee.transferParticipantId
+          INNER JOIN
+            transferFulfilment txf
+            ON txf.transferId = txpPayer.transferId
+          INNER JOIN
+            transferParticipantRoleType txprt
+            ON txprt.transferParticipantRoleTypeId = txpPayer.transferParticipantRoleTypeId
+            AND txprt.name = 'PAYER_DFSP'
+          INNER JOIN
+            participantCurrency pcPayer
+            ON pcPayer.participantCurrencyId = txpPayer.participantCurrencyId
+          INNER JOIN
+            participantCurrency pcPayee
+            ON pcPayee.participantCurrencyId = txpPayee.participantCurrencyId
+          INNER JOIN
+            participant payer
+            ON pcPayer.participantId = payer.participantId
+          INNER JOIN
+            participant payee
+            ON pcPayee.participantId = payee.participantId
+          INNER JOIN
+            settlementWindow sw
+            ON sw.settlementWindowId = txf.settlementWindowId
+          INNER JOIN
+            settlementWindowStateChange swOpen
+            ON swOpen.settlementWindowId = sw.settlementWindowId
+          INNER JOIN
+            settlementWindowStateChange swClose
+            ON swClose.settlementWindowId = sw.settlementWindowId
+          WHERE
+            sw.settlementWindowId = :settlementWindowId
+            AND swOpen.settlementWindowStateId = 'OPEN'
+            AND swClose.settlementWindowStateId = 'CLOSED'
+            AND (payer.participantId = :dfspId OR payee.participantId = :dfspId)
+          GROUP BY
+            payer.participantId,
+            payee.participantId,
+            currency,
+            swOpen.createdDate,
+            swClose.createdDate
+        ) AS result
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <style>
+            table {
+                font-family: arial, sans-serif;
+                border-collapse: collapse;
+                width: 100%;
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            th {
+            //            border: 1px solid #efefef;
+                text-align: left;
+                padding: 0 8px;
+            }
+
+            td {
+    //            border: 1px solid #efefef;
+                padding: 8px;
+            }
+
+            tr:nth-child(even) {
+    //            background-color: #efefef;
+            }
+
+            td > span {
+                font-weight: bold;
+            }
+        </style>
+        <title>FSP Settlement Report</title>
+    </head>
+    <body>
+
+    <%
+        const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
+    %>
+
+    <table>
+        <tr>
+            <td>fromName</td>
+            <td>fromId</td>
+            <td>toName</td>
+            <td>toId</td>
+            <td>currency</td>
+            <td>numTransactions</td>
+            <td>sent</td>
+            <td>received</td>
+            <td>net</td>
+            <td>settlementWindowOpen</td>
+            <td>settlementWindowClose</td>
+        </tr>
+        <% for(let e of report) { %>
+            <tr>
+                <td><%= e.fromName %></td>
+                <td><%= e.fromId %></td>
+                <td><%= e.toName %></td>
+                <td><%= e.toId %></td>
+                <td><%= e.currency %></td>
+                <td><%= e.numTransactions %></td>
+                <td><%= e.sent %></td>
+                <td><%= e.received %></td>
+                <td><%= e.net %></td>
+                <td><%= e.settlementWindowOpen.toISOString() %></td>
+                <td><%= e.settlementWindowClose.toISOString() %></td>
+            </tr>
+        <% } %>
+    </table>
+    </body>
+    </html>
+
+{{- end }}

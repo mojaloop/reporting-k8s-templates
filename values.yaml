@@ -1,0 +1,10 @@
+# Default values for reporting-k8s-templates.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+templates:
+  settlement: true
+  dfspSettlement: true
+  dfspSettlementDetail: true
+  reconciliationAmount: true
+  settlementWindow: true

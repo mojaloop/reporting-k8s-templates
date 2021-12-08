@@ -1,0 +1,166 @@
+{{- if .Values.templates.dfspSettlementDetail -}}
+
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: {{- printf "%s-%s" .Release.Name "dfsp-settlement-detail" | trimPrefix "-" }}
+spec:
+  endpoint:
+    path: /dfspSettlementDetail
+    params:
+      - name: settlementId
+        required: true
+      - name: fspid
+        required: true
+  queries:
+    - name: dfspInfo
+      query: |
+        SELECT participantId, name FROM participant WHERE name = :fspid AND name != 'Hub'
+    - name: report
+      query: |
+        SELECT
+                pCPayer.participantId as payerFspid,
+                pPayer.name as payerFspName,
+                pCPayee.participantId as payeeFspid,
+                pPayee.name as payeeFspName,
+                tF.transferId,
+                tS.name as transactionType,
+                tSS.name as transactionNature,
+                tF.completedDate as lastModifiedDate,
+                pITPayer.name as payerIdentifierType,
+                qpPayer.partyIdentifierValue as payerIdentifierValue,
+                pITPayee.name as payeeIdentifierType,
+                qpPayee.partyIdentifierValue as payeeIdentifierValue,
+                t.amount as amount,
+                c.currencyId,
+                s.settlementId,
+                s.createdDate as settlementCreatedDate,
+                sSW.settlementWindowId
+            FROM
+                transferFulfilment tF
+                INNER JOIN transfer t ON t.transferId = tF.transferId
+                INNER JOIN transferParticipant tPPayer ON tPPayer.transferId = tF.transferId
+                    AND tPPayer.transferParticipantRoleTypeId = (SELECT transferParticipantRoleTypeId from transferParticipantRoleType WHERE name = 'PAYER_DFSP')
+                    INNER JOIN participantCurrency pCPayer ON pCPayer.participantCurrencyId = tPPayer.participantCurrencyId
+                    INNER JOIN participant pPayer ON pPayer.participantId = pCPayer.participantId
+                INNER JOIN transferParticipant tPPayee ON tPPayee.transferId = tF.transferId
+                    AND tPPayee.transferParticipantRoleTypeId = (SELECT transferParticipantRoleTypeId from transferParticipantRoleType WHERE name = 'PAYEE_DFSP')
+                    INNER JOIN participantCurrency pCPayee ON pCPayee.participantCurrencyId = tPPayee.participantCurrencyId
+                    INNER JOIN participant pPayee ON pPayee.participantId = pCPayee.participantId
+                INNER JOIN settlementWindow sW on sW.settlementWindowId = tF.settlementWindowId
+                INNER JOIN settlementSettlementWindow sSW on tF.settlementWindowId = sSW.settlementWindowId
+                INNER JOIN settlementWindowStateChange sWSC on sW.currentStateChangeId = sWSC.settlementWindowStateChangeId
+                INNER JOIN settlement s on sSW.settlementId = s.settlementId
+                INNER JOIN settlementModel sM ON sM.settlementModelId = s.settlementModelId
+                INNER JOIN currency c ON c.currencyId = sM.currencyId
+                INNER JOIN quote q on q.transactionReferenceId = tF.transferId
+                INNER JOIN quoteParty qpPayer on qpPayer.quoteId = q.quoteId AND qpPayer.partyTypeId = (SELECT partyTypeId FROM partyType WHERE name = 'PAYER')
+                    INNER JOIN partyIdentifierType pITPayer ON pITPayer.partyIdentifierTypeId = qpPayer.partyIdentifierTypeId
+                INNER JOIN quoteParty qpPayee on qpPayee.quoteId = q.quoteId AND qpPayee.partyTypeId = (SELECT partyTypeId FROM partyType WHERE name = 'PAYEE')
+                    INNER JOIN partyIdentifierType pITPayee ON pITPayee.partyIdentifierTypeId = qpPayee.partyIdentifierTypeId
+                INNER JOIN transactionScenario tS on tS.transactionScenarioId = q.transactionScenarioId
+                LEFT JOIN transactionSubScenario tSS on tSS.transactionSubScenarioId = q.transactionSubScenarioId
+            WHERE
+                tF.isValid
+                AND s.settlementId = :settlementId
+                AND (pPayee.name = :fspid OR pPayer.name = :fspid)
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <style>
+            table {
+                font-family: arial, sans-serif;
+                border-collapse: collapse;
+                width: 100%;
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            th {
+            //            border: 1px solid #efefef;
+                text-align: left;
+                padding: 0 8px;
+            }
+
+            td {
+    //            border: 1px solid #efefef;
+                padding: 8px;
+            }
+
+            tr:nth-child(even) {
+    //            background-color: #efefef;
+            }
+
+            td > span {
+                font-weight: bold;
+            }
+        </style>
+        <title>FSP Settlement Report</title>
+    </head>
+    <body>
+
+    <%
+        const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
+    %>
+
+    <table data-json="<%= JSON.stringify(report) %>">
+        <tr>
+            <td>Participant ID</td>
+            <td style="text-align: right"><%= dfspInfo[0]?.participantId %></td>
+            <td>FSP ID</td>
+            <td style="text-align: right"><%= dfspInfo[0]?.name %></td>
+            <td>Settlement ID</td>
+            <td style="text-align: right"><%= report[0]?.settlementId %></td>
+            <td style="width: 20px"></td>
+            <td>Created Date</td>
+            <td colspan="2" style="text-align: right"><%= report[0]?.settlementCreatedDate.toISOString() %></td>
+            <td style="wisth: 20px"></td>
+            <td>Currency</td>
+            <td><%= report[0]?.currencyId %></td>
+            <td></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td colspan="14" style="padding-top: 20px"></td>
+        </tr>
+        <tr>
+            <td>Sender Participant ID</td>
+            <td>Sender FSP ID</td>
+            <td>Receiver Participant ID</td>
+            <td>Receiver FSP ID</td>
+            <td>Transfer ID</td>
+            <td>Tx Type</td>
+            <td>Tx Nature</td>
+            <td>Last Modified</td>
+            <td>Sender ID Type</td>
+            <td>Sender ID</td>
+            <td>Receiver ID Type</td>
+            <td>Receiver ID</td>
+            <td>Amount</td>
+            <td>Fee</td>
+        </tr>
+        <% for(let e of report) { %>
+            <tr>
+                <td><%= e.payerFspid %></td>
+                <td><%= e.payerFspName %></td>
+                <td><%= e.payeeFspid %></td>
+                <td><%= e.payeeFspName %></td>
+                <td><%= e.transferId %></td>
+                <td><%= e.transactionType %></td>
+                <td><%= e.transactionNature %></td>
+                <td><%= e.lastModifiedDate.toISOString() %></td>
+                <td><%= e.payerIdentifierType %></td>
+                <td><%= e.payerIdentifierValue %></td>
+                <td><%= e.payeeIdentifierType %></td>
+                <td><%= e.payeeIdentifierValue %></td>
+                <td><%= formatAmount(e.amount) %></td>
+                <td>-</td>
+            </tr>
+        <% } %>
+    </table>
+    </body>
+    </html>
+
+{{- end }}
