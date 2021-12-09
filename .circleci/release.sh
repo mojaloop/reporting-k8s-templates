@@ -27,7 +27,7 @@ main() {
 
     chart_name=$(awk '/^name: /{print $NF}' < Chart.yaml )
     chart_ver=$(awk '/^version: /{print $NF}' < Chart.yaml)
-    tag="${chart_name}-${chart_ver}"
+    tag="v${chart_ver}"
     if git rev-parse "$tag" >/dev/null 2>&1; then
 	    echo "Chart '$chart_name': tag '$tag' already exists, skipping."
 	    changed=false
