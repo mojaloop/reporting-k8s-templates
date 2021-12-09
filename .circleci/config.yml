@@ -11,6 +11,7 @@ jobs:
       - run:
           name: release
           command: |
+            echo "export CR_REPO_URL=https://mojaloop.github.io/reporting-k8s-templates" >> $BASH_ENV
             echo "export GIT_USERNAME=$CIRCLE_PROJECT_USERNAME" >> $BASH_ENV
             echo "export GIT_REPOSITORY_NAME=$CIRCLE_PROJECT_REPONAME" >> $BASH_ENV
             .circleci/install_tools.sh
