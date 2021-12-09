@@ -1,85 +1,29 @@
-# CircleCI v2.1 Config
 version: 2.1
-
-##
-# orbs
-#
-# Orbs used in this pipeline
-##
-orbs:
-  anchore: anchore/anchore-engine@1.6.0
-  deploy-kube: mojaloop/deployment@0.1.6
-
-##
-# defaults
-#
-# YAML defaults templates, in alphabetical order
-##
-defaults_Dependencies: &defaults_Dependencies |
-  apt-get update
-  apt-get install -y \
-    git \
-    ca-certificates \
-    curl
-
-defaults_awsCliDependencies: &defaults_awsCliDependencies |
-  apk --update --no-cache add \
-          python3 \
-          py3-pip \
-          groff \
-          less \
-          mailcap
-  pip install --upgrade awscli==1.14.5 s3cmd==2.0.1 python-magic
-
-defaults_license_scanner: &defaults_license_scanner
-  name: Install and set up license-scanner
-  command: |
-    git clone https://github.com/mojaloop/license-scanner /tmp/license-scanner
-    cd /tmp/license-scanner && make build default-files set-up
-
-##
-# Executors
-#
-# CircleCI Executors
-##
-executors:
-  docker-debian-with-nodejs:
-    working_directory: /home/circleci/project
-    docker:
-      - image: node:lts-buster-slim
-  machine-ubuntu-with-docker:
-    machine:
-      image: ubuntu-2004:202010-01
-
-##
-# Jobs
-#
-# A map of CircleCI jobs
-##
 jobs:
-  deploy:
-    executor: deploy-kube/helm-kube
+  release-charts:
+    docker:
+      - image: cimg/base:stable
     steps:
-      - checkout
-      - deploy-kube/setup_and_run:
-          helm_set_values: |
-            --set finance-portal.frontend.image.repository=$DOCKER_ORG/$CIRCLE_PROJECT_REPONAME \
-            --set finance-portal.frontend.image.tag=$CIRCLE_TAG
+      - run:
+          name: checkout
+          command: |
+            git clone https://${GITHUB_TOKEN}@github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git .
+      - run:
+          name: release
+          command: |
+            echo "export GIT_USERNAME=$CIRCLE_PROJECT_USERNAME" >> $BASH_ENV
+            echo "export GIT_REPOSITORY_NAME=$CIRCLE_PROJECT_REPONAME" >> $BASH_ENV
+            .circleci/install_tools.sh
+            .circleci/release.sh
 
-##
-# Workflows
-#
-# CircleCI Workflow config
-##
 workflows:
   version: 2
-  build_and_test:
+  release:
     jobs:
-      - deploy:
+      - release-charts:
           context: org-global
           filters:
             tags:
-              only: /v[0-9]+(\.[0-9]+)*(\-snapshot)?/
+              ignore: /.*/
             branches:
-              ignore:
-                - /.*/
+              only: master
