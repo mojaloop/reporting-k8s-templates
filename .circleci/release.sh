@@ -65,10 +65,16 @@ release_charts() {
 }
 
 update_index() {
+    cr index -o "$GIT_USERNAME" -r "$GIT_REPOSITORY_NAME" -c "$CR_REPO_URL" --release-name-template "v{{ .Version }}"
+
     git config user.email "$GIT_USERNAME@users.noreply.github.com"
     git config user.name "$GIT_USERNAME"
 
-    cr index -o "$GIT_USERNAME" -r "$GIT_REPOSITORY_NAME" -c "$CR_REPO_URL" --push --release-name-template "v{{ .Version }}"
+    git checkout gh-pages
+    cp --force .cr-index/index.yaml index.yaml
+    git add index.yaml
+    git commit --message="Update index.yaml" --signoff
+    git push "$GIT_REPOSITORY_URL" gh-pages
 }
 
 main
