@@ -19,24 +19,21 @@ main() {
 
     echo "Fetching charts..."
 
-    local changed_charts=()
+    local changed
+    local chart_name
+    local chart_ver
+    local tag
 
-    # iterate over all charts and skip those that already have a tag matching the current version
-    for chart_config in */Chart.yaml; do
-        local chart_name
-        local chart_ver
-        local tag
-
-        chart_name=$(awk '/^name: /{print $NF}' < "$chart_config" )
-        chart_ver=$(awk '/^version: /{print $NF}' < "$chart_config")
-        tag="${chart_name}-${chart_ver}"
-        if git rev-parse "$tag" >/dev/null 2>&1; then
-            echo "Chart '$chart_name': tag '$tag' already exists, skipping."
-        else
-            echo "Chart '$chart_name': new version '$chart_ver' detected."
-            changed_charts+=("$chart_name")
-        fi
-    done
+    chart_name=$(awk '/^name: /{print $NF}' < Chart.yaml )
+    chart_ver=$(awk '/^version: /{print $NF}' < Chart.yaml)
+    tag="${chart_name}-${chart_ver}"
+    if git rev-parse "$tag" >/dev/null 2>&1; then
+	    echo "Chart '$chart_name': tag '$tag' already exists, skipping."
+	    changed=false
+    else
+	    echo "Chart '$chart_name': new version '$chart_ver' detected."
+	    changed=true
+    fi
 
     # preparing dirs
     rm -rf .cr-release-packages
@@ -45,12 +42,9 @@ main() {
     rm -rf .cr-index
     mkdir -p .cr-index
 
-    # only release those charts for which a new version has been detected
-    if [[ -n "${changed_charts[*]}" ]]; then
-        for chart in "${changed_charts[@]}"; do
-            echo "Packaging chart '$chart'..."
-            package_chart "$chart"
-        done
+    if $changed; then
+	echo "Packaging chart '$chart_name'..."
+	helm package . --destination .cr-release-packages --dependency-update
 
         release_charts
 
@@ -63,11 +57,6 @@ main() {
     fi
 
     popd > /dev/null
-}
-
-package_chart() {
-    local chart="$1"
-    helm package "$chart" --destination .cr-release-packages --dependency-update
 }
 
 release_charts() {
