@@ -65,10 +65,10 @@ release_charts() {
 }
 
 update_index() {
-    cr index -o "$GIT_USERNAME" -r "$GIT_REPOSITORY_NAME" -c "$CR_REPO_URL" --push --release-name-template "v{{ .Version }}"
-
     git config user.email "$GIT_USERNAME@users.noreply.github.com"
     git config user.name "$GIT_USERNAME"
+
+    cr index -o "$GIT_USERNAME" -r "$GIT_REPOSITORY_NAME" -c "$CR_REPO_URL" --push --release-name-template "v{{ .Version }}"
 }
 
 main
