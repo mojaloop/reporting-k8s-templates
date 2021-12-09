@@ -3,7 +3,7 @@
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: {{- printf "%s-%s" .Release.Name "reconciliation-amount" | trimPrefix "-" }}
+  name: {{ printf "%s-%s" .Release.Name "reconciliation-amount" | trimPrefix "-" }}
 spec:
   endpoint:
     path: /reconciliationAmount

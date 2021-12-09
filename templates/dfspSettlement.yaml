@@ -3,7 +3,7 @@
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: {{- printf "%s-%s" .Release.Name "dfsp-settlement" | trimPrefix "-" }}
+  name: {{ printf "%s-%s" .Release.Name "dfsp-settlement" | trimPrefix "-" }}
 spec:
   endpoint:
     path: /dfspSettlement
