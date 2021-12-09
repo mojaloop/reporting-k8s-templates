@@ -8,3 +8,4 @@ templates:
   dfspSettlementDetail: true
   reconciliationAmount: true
   settlementWindow: true
+  settlementInitiation: true

@@ -1,0 +1,134 @@
+{{- if .Values.templates.settlementInitiation -}}
+
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: {{- printf "%s-%s" .Release.Name "settlement-initiation" | trimPrefix "-" }}
+spec:
+  endpoint:
+    path: /settlementInitiation
+    params:
+      - name: settlementId
+        required: true
+  queries:
+    - name: settlementId
+      query: SELECT :settlementId AS settlementId
+    - name: adjustments
+      query: |
+        SELECT
+            SUM(tp.amount)            AS  amount,
+            p.name                    AS  name,
+            p.participantId           AS  participantId,
+            pc.participantCurrencyId  AS  accountId,
+            pc.currencyId             AS  currencyId,
+            MAX(c.scale)              AS  currencyScale
+        FROM settlement s
+        INNER JOIN settlementSettlementWindow ssw  ON  ssw.settlementId = s.settlementId
+        INNER JOIN transferFulfilment tf           ON  tf.settlementWindowId = ssw.settlementWindowId
+        INNER JOIN transferParticipant tp          ON  tp.transferId = tf.transferId
+        INNER JOIN participantCurrency pc          ON  tp.participantCurrencyId = pc.participantCurrencyId
+        INNER JOIN currency c                      ON  c.currencyId = pc.currencyId
+        INNER JOIN participant p                   ON  p.participantId = pc.participantId
+        INNER JOIN ledgerAccountType lat           ON  lat.ledgerAccountTypeId = pc.ledgerAccountTypeId
+        WHERE s.settlementId = :settlementId AND lat.name = 'POSITION'
+        GROUP BY p.name, pc.participantCurrencyId
+
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <style>
+            table {
+                font-family: arial, sans-serif;
+                border-collapse: collapse;
+                width: 100%;
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            td, th {
+    //            border: 1px solid #efefef;
+                text-align: left;
+                padding: 8px;
+            }
+
+            tr:nth-child(even) {
+    //            background-color: #efefef;
+            }
+
+            td > span {
+                font-weight: bold;
+            }
+        </style>
+        <title>Settlement Bank Report</title>
+    </head>
+    <body>
+
+    <%
+    const bankId = {
+        demomfi: 'demomfi placeholder\n0000 0000 0000 0000',
+        demowallet: 'demowallet placeholder\n0000 0000 0000 0000',
+        noresponsepayeefsp: 'noresponsepayeefsp placeholder\n0000 0000 0000 0000',
+        payeefsp: 'payeefsp placeholder\n0000 0000 0000 0000',
+        payerfsp: 'payerfsp placeholder\n0000 0000 0000 0000',
+        pm4mlreceiverfsp: 'pm4mlreceiverfsp placeholder\n0000 0000 0000 0000',
+        pm4mlsenderfsp: 'pm4mlsenderfsp placeholder\n0000 0000 0000 0000',
+        testfsp1: 'testfsp1 placeholder\n0000 0000 0000 0000',
+        testfsp2: 'testfsp2 placeholder\n0000 0000 0000 0000',
+    };
+
+    const formatAmount = (amount) => {
+          const v = parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: adjustments[0]?.currencyScale });
+          return `${v} ${adjustments[0]?.currencyId}`;
+    }
+
+    // Because no currency has more than four decimal places, we can have quite a large epsilon value
+    const EPSILON = 1e-5;
+    // We use parseFloat because it returns NaN for parseFloat(null)
+    const transfersSum = adjustments.reduce((sum, adj) => sum + parseFloat(adj.amount), 0);
+    if (Number.isNaN(transfersSum) || (transfersSum > EPSILON)) {
+      throw new Error(`Expected settlement initiation report transfers to sum to zero. Sum: ${transfersSum}. Report data: ${JSON.stringify(adjustments)}.`);
+    }
+    %>
+
+    <table>
+        <tr>
+            <td><span>Settlement ID</span></td>
+            <td style="text-align: right"><%= settlementId[0].settlementId %></td>
+        </tr>
+        <tr>
+            <td><span>Settlement Completed Date</span></td>
+            <td style="text-align: right"></td>
+        </tr>
+        <tr>
+            <td><span>Settlement Completed Time</span></td>
+            <td style="text-align: right"></td>
+        </tr>
+        <tr>
+            <td><span>Timezone</span></td>
+            <td style="text-align: right">MMT</td>
+        </tr>
+
+        <tr><td></td><td></td></tr>
+
+        <tr>
+            <td>Participant (PayerFSP Identifier)</td>
+            <td>Participant (Bank Identifier)</td>
+            <td>Balance</td>
+            <td>Settlement Transfer</td>
+        </tr>
+        <% for (const { name, participantId, accountId, currencyId, amount } of adjustments) { %>
+            <tr>
+                <td><%= `${participantId} ${accountId} ${name}` %></td>
+                <td><%= `${bankId[name]}` %></td>
+                <td></td>
+                <td style="text-align: right"><%= formatAmount(amount) %></td>
+                <td></td>
+            </tr>
+        <% } %>
+    </table>
+    </body>
+    </html>
+
+{{- end }}
