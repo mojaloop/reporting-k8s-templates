@@ -61,11 +61,11 @@ main() {
 }
 
 release_charts() {
-    cr upload -o "$GIT_USERNAME" -r "$GIT_REPOSITORY_NAME" --release-name-template "{{ .Version }}"
+    cr upload -o "$GIT_USERNAME" -r "$GIT_REPOSITORY_NAME" --release-name-template "v{{ .Version }}"
 }
 
 update_index() {
-    cr index -o "$GIT_USERNAME" -r "$GIT_REPOSITORY_NAME" -c "$CR_REPO_URL" --push --release-name-template "{{ .Version }}"
+    cr index -o "$GIT_USERNAME" -r "$GIT_REPOSITORY_NAME" -c "$CR_REPO_URL" --push --release-name-template "v{{ .Version }}"
 
     git config user.email "$GIT_USERNAME@users.noreply.github.com"
     git config user.name "$GIT_USERNAME"
