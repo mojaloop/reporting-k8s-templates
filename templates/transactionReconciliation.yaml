@@ -1,0 +1,175 @@
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: {{ printf "%s-%s" .Release.Name "tx-reconciliation" | trimPrefix "-" }}
+spec:
+  endpoint:
+    path: /transactionReconciliation
+    params:
+      - name: settlementWindowId
+      - name: dfspId
+        required: true
+      - name: startDate
+        required: true
+      - name: endDate
+        required: true
+  queries:
+    - name: report
+      query: |
+        SELECT DISTINCT
+          qt.quoteId AS quoteId,
+          payerPart.name AS senderDFSPId,
+          payerPart.name AS senderDFSPName,
+          payeeQp.fspId AS receiverDFSPId,
+          payeePart.name AS receiverDFSPName,
+          tfr.transferId AS hubTxnID,
+          IF(txnSce.name = 'TRANSFER', 'P2P', (IF(txnSce.name = 'TRANSFER', 'MP', NULL))) AS transactionType,
+          IF(qt.transactionRequestId IS NULL, 'Original', 'Reversal') AS natureOfTxnType,
+          qt.createdDate AS requestDate,
+          tfr.createdDate AS createdDate,
+          IF(ssc.settlementStateId = 'SETTLED', ssc.createdDate, Cast(NULL as datetime)) AS settlementDate,
+          payerQp.currencyId AS senderCountryCurrencyCode,
+          payeeQp.currencyId AS receiverCountryCurrencyCode,
+          payerQp.partyIdentifierValue AS senderId,
+          payeeQp.partyIdentifierValue AS receiverId,
+          tfr.amount AS reconciliationAmount,
+          IF((payeeParty.firstName <> NULL && payeeParty.lastName <> NULL), 'RNR', 'RNND') AS receiverNameStatus,
+          '' AS pricingOption,
+          '' AS receiverKYCLevelStatus,
+          ts.transferStateId AS status,
+          ts.createdDate as modificationDate, '' AS errorCode,
+          tfr.transferId AS senderDFSPTxnID,
+          tfr.transferId AS receiverDFSPTxnID,
+          IF(xfrFul.settlementWindowId IS NULL, '', Cast(xfrFul.settlementWindowId as char)) AS settlementWindowId,
+          ssc.settlementStateId AS settlementState,
+          ssc.createdDate AS settlementStateChangeDate
+        FROM
+          quote qt
+        INNER JOIN
+          transactionReference txnref
+          ON qt.quoteId = txnref.quoteId
+        INNER JOIN
+          transactionScenario txnSce
+          ON qt.transactionScenarioId = txnSce.transactionScenarioId
+        INNER JOIN
+          quoteParty payerQp
+          ON qt.quoteId = payerQp.quoteId AND payerQp.partyTypeId = '1'
+        INNER JOIN
+          quoteParty payeeQp
+          ON qt.quoteId = payeeQp.quoteId AND payeeQp.partyTypeId = '2'
+        INNER JOIN
+          participant payerPart
+          ON payerQp.participantId = payerPart.participantId
+        INNER JOIN
+          participant payeePart
+          ON payeeQp.participantId = payeePart.participantId
+        INNER JOIN
+          quoteResponse qr
+          ON qr.quoteId = qt.quoteId
+        INNER JOIN
+          transfer tfr
+          ON tfr.transferId = txnref.transactionReferenceId
+        LEFT JOIN
+          transferFulfilment xfrFul
+          ON xfrFul.transferId = tfr.transferId
+        LEFT JOIN
+          party payerParty
+          ON payerQp.partyTypeId = payerParty.partyId
+        LEFT JOIN
+          party payeeParty
+          ON payerQp.partyTypeId = payeeParty.partyId
+        LEFT JOIN
+          settlementSettlementWindow ssw
+          ON ssw.settlementWindowId = xfrFul.settlementWindowId
+        LEFT JOIN
+          settlement sett
+          ON sett.settlementId = ssw.settlementId
+        LEFT JOIN
+          settlementStateChange ssc
+          ON ssc.settlementStateChangeId = sett.currentStateChangeId
+        LEFT JOIN
+          (
+              SELECT tsc.transferId, tsc.transferStateId, tsc.createdDate
+              FROM
+                  transferStateChange tsc
+              INNER JOIN
+                  (
+                      SELECT
+                          MAX(tsc.transferStateChangeId) AS transferStateChangeId,
+                          tsc.transferId
+                      FROM
+                          transferStateChange tsc
+                      GROUP BY transferId
+                  ) mtsc
+                  ON mtsc.transferId = tsc.transferId AND tsc.transferStateChangeId = mtsc.transferStateChangeID
+          ) ts
+          ON ts.transferId = tfr.transferId
+        WHERE
+          (payerPart.name = :dfspId OR payeePart.name = :dfspId)
+        AND
+          (xfrFul.settlementWindowId = :settlementWindowId OR :settlementWindowId IS NULL)
+        AND
+          qt.createdDate BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T')
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <style>
+            table {
+                font-family: arial, sans-serif;
+                border-collapse: collapse;
+                width: 100%;
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            th {
+            //            border: 1px solid #efefef;
+                text-align: left;
+                padding: 0 8px;
+            }
+
+            td {
+    //            border: 1px solid #efefef;
+                padding: 8px;
+            }
+
+            tr:nth-child(even) {
+    //            background-color: #efefef;
+            }
+
+            td > span {
+                font-weight: bold;
+            }
+        </style>
+        <title>FSP Settlement Report</title>
+    </head>
+    <body>
+
+    <%
+        const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
+    %>
+
+    <table>
+            <tr>
+                <% for(let k of Object.keys(report[0])) { %>
+                  <td><%= k %></td>
+                <% } %>
+            </tr>
+
+            <% for(let r of report) { %>
+            <tr>
+              <% for(let k of Object.keys(r)) { %>
+
+                    <td><%= r[k] %></td>
+              <% } %>
+            </tr>
+            <% } %>
+
+        </table>
+    </body>
+    </html>
+
+
+
