@@ -9,3 +9,4 @@ templates:
   reconciliationAmount: true
   settlementWindow: true
   settlementInitiation: true
+  transactionReconciliation: true
