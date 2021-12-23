@@ -139,8 +139,7 @@ spec:
         netPositionsPretty[id] = v >= 0 ? `${vf} ${transfers[0]?.currencyId}` : `(${vf}) ${transfers[0]?.currencyId}`;
     }
 
-    const lastActionDate = transfers.filter(a => a.lastActionDate)
-                              .reduce((a,b) => a.lastActionDate.getTime() > b.lastActionDate.getTime() ? a : b)?.lastActionDate;
+    const lastActionDate = transfers.reduce((a,b) => a.lastActionDate?.getTime() > b.lastActionDate?.getTime() ? a : b, 0)?.lastActionDate;
 
     const jsonOutput = {
       settlementId: transfers[0]?.settlementId,
@@ -161,7 +160,7 @@ spec:
             <td style="text-align: right"><%= transfers[0]?.settlementId %></td>
             <td></td>
             <td><span>Created Date</span></td>
-            <td colspan="2" style="text-align: right"><%= transfers[0] && (d = transfers[0].createdDate, `${d.toLocaleDateString('en-ZA')} ${d.toLocaleTimeString('en-US')}`)%></td>
+            <td colspan="2" style="text-align: right"><%= transfers[0]?.createdDate && (d = transfers[0].createdDate, `${d.toLocaleDateString('en-ZA')} ${d.toLocaleTimeString('en-US')}`)%></td>
         </tr>
         <tr>
             <td><span>Currency</span></td>
@@ -169,7 +168,7 @@ spec:
             <td></td>
             <td><span>Last Action Date</span></td>
             <td colspan="2" style="text-align: right"><%=
-                `${lastActionDate.toLocaleDateString('en-ZA')} ${lastActionDate.toLocaleTimeString('en-US')}`
+                `${lastActionDate?.toLocaleDateString('en-ZA')} ${lastActionDate?.toLocaleTimeString('en-US')}`
                 %></td>
         </tr>
         <tr>

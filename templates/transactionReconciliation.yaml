@@ -153,7 +153,7 @@ spec:
 
     <table>
             <tr>
-                <% for(let k of Object.keys(report[0])) { %>
+                <% for(let k of Object.keys(report[0] || {})) { %>
                   <td><%= k %></td>
                 <% } %>
             </tr>
