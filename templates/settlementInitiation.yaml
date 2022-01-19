@@ -78,10 +78,7 @@ spec:
         testfsp2: 'testfsp2 placeholder\n0000 0000 0000 0000',
     };
 
-    const formatAmount = (amount) => {
-          const v = parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: adjustments[0]?.currencyScale });
-          return `${v} ${adjustments[0]?.currencyId}`;
-    }
+    const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: adjustments[0]?.currencyScale });
 
     // Because no currency has more than four decimal places, we can have quite a large epsilon value
     const EPSILON = 1e-5;
@@ -117,14 +114,15 @@ spec:
             <td>Participant (Bank Identifier)</td>
             <td>Balance</td>
             <td>Settlement Transfer</td>
+            <td>Currency</td>
         </tr>
         <% for (const { name, participantId, accountId, currencyId, amount } of adjustments) { %>
             <tr>
                 <td><%= `${participantId} ${accountId} ${name}` %></td>
                 <td><%= `${bankId[name]}` %></td>
-                <td></td>
                 <td style="text-align: right"><%= formatAmount(amount) %></td>
                 <td></td>
+                <td><%= `${currencyId}` %></td>
             </tr>
         <% } %>
     </table>
