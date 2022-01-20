@@ -120,8 +120,8 @@ spec:
             <tr>
                 <td><%= `${participantId} ${accountId} ${name}` %></td>
                 <td><%= `${bankId[name]}` %></td>
-                <td style="text-align: right"><%= formatAmount(amount) %></td>
                 <td></td>
+                <td style="text-align: right"><%= formatAmount(amount) %></td>
                 <td><%= `${currencyId}` %></td>
             </tr>
         <% } %>
