@@ -10,3 +10,5 @@ templates:
   settlementWindow: true
   settlementInitiation: true
   transactionReconciliation: true
+  dfspSettlementStatement: true
+  settlementAudit: true
