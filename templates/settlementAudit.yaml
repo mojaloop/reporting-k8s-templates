@@ -1,0 +1,175 @@
+{{- if .Values.templates.settlementAudit -}}
+
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: {{ printf "%s-%s" .Release.Name "settlement-audit  " | trimPrefix "-" }}
+spec:
+  endpoint:
+    path: /settlementAudit
+    params:
+      - name: startDate
+        required: true
+      - name: endDate
+        required: true
+  queries:
+    - name: dfspInfo
+      query: |
+        SELECT 
+            p.participantId, 
+            p.name, 
+            :startDate AS startDate, 
+            :endDate AS endDate,
+            pc.currencyId,
+            pc.participantCurrencyId,
+            lat.name AS accountType
+        FROM participant p
+        INNER JOIN participantCurrency pc on pc.participantId = p.participantId
+        INNER JOIN ledgerAccountType lat on lat.ledgerAccountTypeId = pc.ledgerAccountTypeId
+        WHERE p.name != 'Hub' AND lat.name = 'SETTLEMENT'
+    - name: report
+      query: |
+        SELECT
+            p.participantId AS participantId,
+            p.name AS name,
+            pc.currencyId AS currencyId,
+            pc.participantCurrencyId AS participantCurrencyId,
+            tp.transferId AS transferId, 
+            tp.createdDate AS createdDate, 
+            COALESCE(tscIn.reason, tscOut.reason) AS description,
+            COALESCE(tex1.value, '') AS user,
+            COALESCE(tex2.value, '') AS reference,
+            (CASE WHEN tp.amount < 0 THEN -tp.amount ELSE NULL END) AS fundsIn,
+            (CASE WHEN tp.amount > 0 THEN tp.amount ELSE NULL END) AS fundsOut,
+            ppc.value AS balance,
+            c.scale AS  currencyScale,
+            lat.name AS accountType
+        FROM participant p 
+        INNER JOIN participantCurrency pc ON p.participantId = pc.participantId 
+        INNER JOIN ledgerAccountType lat ON lat.ledgerAccountTypeId = pc.ledgerAccountTypeId
+        INNER JOIN transferParticipant tp ON tp.participantCurrencyId = pc.participantCurrencyId
+        INNER JOIN transferParticipantRoleType tpr ON tpr.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
+        INNER JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId
+        INNER JOIN transferStateChange tscIn ON tp.transferId = tscIn.transferId 
+        INNER JOIN participantPosition pp ON pp.participantCurrencyId = pc.participantCurrencyId
+        INNER JOIN participantPositionChange ppc ON ppc.participantPositionId = pp.participantPositionId
+        INNER JOIN currency c ON c.currencyId = pc.currencyId
+        LEFT JOIN transferExtension tex1 ON tex1.transferId = tp.transferId AND tex1.key = 'user'
+        LEFT JOIN transferExtension tex2 ON tex2.transferId = tp.transferId AND tex2.key = 'externalReference'
+
+        WHERE tpr.name = 'DFSP_SETTLEMENT' 
+        AND tscIn.transferStateId = 'COMMITTED'
+        AND tscOut.transferStateId = 'RESERVED'
+        AND (tscIn.transferStateChangeId = ppc.transferStateChangeId OR tscOut.transferStateChangeId = ppc.transferStateChangeId)
+        AND ( tp.createdDate BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
+        ORDER BY p.name, pc.currencyId, pc.participantCurrencyId, ppc.participantPositionChangeId
+  template: |
+    <!DOCTYPE html>
+
+    <html lang="en">
+
+    <head>
+        <style>
+            table {
+                font-family: arial, sans-serif;
+                border-collapse: collapse;
+                width: 100%;
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            td, th {
+    //            border: 1px solid #efefef;
+                text-align: left;
+                padding: 8px;
+            }
+
+            tr:nth-child(even) {
+    //            background-color: #efefef;
+            }
+
+            td > span {
+                font-weight: bold;
+            }
+        </style>
+        <title> DFSP Settlement Statement</title>
+    </head>
+
+    <body>
+
+
+    <%
+
+
+    const formatAmount = (amount) => {
+      if(amount){
+        return parseFloat(amount).toLocaleString('en-US',
+          { minimumFractionDigits: report[0]?.currencyScale });
+      } else {
+        return '';
+      }
+    }
+
+    %>
+
+    
+    <% dfspInfo.forEach(element => { // Loop Through all the currency accounts
+        const reportData = report.filter( record => record.participantId === element.participantId && record.currencyId === element.currencyId && record.participantCurrencyId === element.participantCurrencyId);
+    %>
+
+
+        <table name=<%= `${element?.name}-${element?.currencyId}` %>>
+            <tr>
+                <td><span>DFSP </span></td>
+                <td style="text-align: left"><%= element?.name %></td>
+            </tr>
+            <tr>
+                <td><span>Account Type</span></td>
+                <td style="text-align: left"><%= element?.accountType %></td>
+            </tr>
+            <tr>
+                <td><span>Date From</span></td>
+                <td style="text-align: left"><%= element?.startDate %></td>
+            </tr>
+            <tr>
+                <td><span>Date To</span></td>
+                <td style="text-align: left"><%= element?.endDate %></td>
+            </tr>
+            <tr>
+                <td><span>Currency</span></td>
+                <td style="text-align: left"><%= element?.currencyId %></td>
+            </tr>
+
+            <tr><td></td><td></td></tr>
+
+            <tr>
+                <td>Transfer Id</td>
+                <td colspan="2">Date Time</td>
+                <td>Process Description</td>
+                <td>User</td>
+                <td>Reference</td>
+                <td>Funds In</td>
+                <td>Funds Out</td>
+                <td>Balance</td>
+            </tr>
+            <% for (const { name, currencyId, transferId, createdDate, description, user, reference, fundsIn, fundsOut, balance } of reportData) { %>
+                <tr>
+                    <td><%= `${transferId}` %></td>
+                    <td colspan="2" style="text-align: right"><%= createdDate && (d = createdDate, `${d.toLocaleDateString('en-ZA')} ${d.toLocaleTimeString('en-US')}`)%></td>
+                    <td><%= `${description}` %></td>
+                    <td><%= `${user}` %></td>
+                    <td><%= `${reference}` %></td>
+                    <td style="text-align: right"><%= formatAmount(fundsIn) %></td>
+                    <td style="text-align: right"><%= formatAmount(fundsOut) %></td>
+                    <td style="text-align: right"><%= formatAmount(balance) %></td>
+                </tr>
+            <% } %>
+        </table>
+
+        <br /><br />
+
+    <% }) %>
+    </body>
+
+    </html>
