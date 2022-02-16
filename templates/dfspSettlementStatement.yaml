@@ -49,16 +49,14 @@ spec:
         INNER JOIN ledgerAccountType lat ON lat.ledgerAccountTypeId = pc.ledgerAccountTypeId
         INNER JOIN transferParticipant tp ON tp.participantCurrencyId = pc.participantCurrencyId
         INNER JOIN transferParticipantRoleType tpr ON tpr.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
-        INNER JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId
-        INNER JOIN transferStateChange tscIn ON tp.transferId = tscIn.transferId 
+        LEFT JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId AND tscOut.transferStateId = 'RESERVED'
+        LEFT JOIN transferStateChange tscIn ON tp.transferId = tscIn.transferId AND tscIn.transferStateId = 'COMMITTED'
         INNER JOIN participantPosition pp ON pp.participantCurrencyId = pc.participantCurrencyId
         INNER JOIN participantPositionChange ppc ON ppc.participantPositionId = pp.participantPositionId
         INNER JOIN currency c ON c.currencyId = pc.currencyId
 
         WHERE tpr.name = 'DFSP_SETTLEMENT' 
         AND p.participantId = :dfspId
-        AND tscIn.transferStateId = 'COMMITTED'
-        AND tscOut.transferStateId = 'RESERVED'
         AND (tscIn.transferStateChangeId = ppc.transferStateChangeId OR tscOut.transferStateChangeId = ppc.transferStateChangeId)
         AND ( tp.createdDate BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
         ORDER BY p.name, pc.currencyId, pc.participantCurrencyId, ppc.participantPositionChangeId
