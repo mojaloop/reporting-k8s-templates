@@ -36,7 +36,9 @@ spec:
             pc.participantCurrencyId AS participantCurrencyId,
             tp.transferId AS transferId, 
             tp.createdDate AS createdDate, 
-            COALESCE(tscIn.reason, tscOut.reason) AS description,
+            tscOut.transferStateChangeId, 
+            (CASE WHEN tsOut.enumeration != 'ABORTED' THEN 'SUCCESS' ELSE tsOut.enumeration END) AS status,
+            tscOut.reason AS description,
             COALESCE(tex1.value, '') AS user,
             COALESCE(tex2.value, '') AS reference,
             (CASE WHEN tp.amount < 0 THEN -tp.amount ELSE NULL END) AS fundsIn,
@@ -49,8 +51,8 @@ spec:
         INNER JOIN ledgerAccountType lat ON lat.ledgerAccountTypeId = pc.ledgerAccountTypeId
         INNER JOIN transferParticipant tp ON tp.participantCurrencyId = pc.participantCurrencyId
         INNER JOIN transferParticipantRoleType tpr ON tpr.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
-        LEFT JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId AND tscOut.transferStateId = 'RESERVED'
-        LEFT JOIN transferStateChange tscIn ON tp.transferId = tscIn.transferId AND tscIn.transferStateId = 'COMMITTED'
+        LEFT JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId 
+        INNER JOIN transferState tsOut ON tscOut.transferStateId = tsOut.transferStateId
         INNER JOIN participantPosition pp ON pp.participantCurrencyId = pc.participantCurrencyId
         INNER JOIN participantPositionChange ppc ON ppc.participantPositionId = pp.participantPositionId
         INNER JOIN currency c ON c.currencyId = pc.currencyId
@@ -58,7 +60,10 @@ spec:
         LEFT JOIN transferExtension tex2 ON tex2.transferId = tp.transferId AND tex2.key = 'externalReference'
 
         WHERE tpr.name = 'DFSP_SETTLEMENT'
-        AND (tscIn.transferStateChangeId = ppc.transferStateChangeId OR tscOut.transferStateChangeId = ppc.transferStateChangeId)
+        AND tscOut.transferStateChangeId = ppc.transferStateChangeId
+        AND tscOut.transferStateChangeId = (SELECT MAX(transferStateChangeId) FROM transferStateChange tscOut1 WHERE tscOut1.transferId = tp.transferId )
+        AND tex1.transferExtensionId = (SELECT MAX(transferExtensionId) FROM transferExtension tex1u WHERE tex1u.transferId = tp.transferId AND tex1u.key = 'user')
+        AND tex2.transferExtensionId = (SELECT MAX(transferExtensionId) FROM transferExtension tex2u WHERE tex2u.transferId = tp.transferId AND tex2u.key = 'externalReference')
         AND ( tp.createdDate BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
         ORDER BY p.name, pc.currencyId, pc.participantCurrencyId, ppc.participantPositionChangeId
   template: |
@@ -144,6 +149,7 @@ spec:
             <tr>
                 <td>Transfer Id</td>
                 <td colspan="2">Date Time</td>
+                <td>Transfer Status</td>
                 <td>Process Description</td>
                 <td>User</td>
                 <td>Reference</td>
@@ -151,10 +157,11 @@ spec:
                 <td>Funds Out</td>
                 <td>Balance</td>
             </tr>
-            <% for (const { name, currencyId, transferId, createdDate, description, user, reference, fundsIn, fundsOut, balance } of reportData) { %>
+            <% for (const { name, currencyId, transferId, createdDate, status, description, user, reference, fundsIn, fundsOut, balance } of reportData) { %>
                 <tr>
                     <td><%= `${transferId}` %></td>
                     <td colspan="2" style="text-align: right"><%= createdDate && (d = createdDate, `${d.toLocaleDateString('en-ZA')} ${d.toLocaleTimeString('en-US')}`)%></td>
+                    <td><%= `${status}` %></td>
                     <td><%= `${description}` %></td>
                     <td><%= `${user}` %></td>
                     <td><%= `${reference}` %></td>
