@@ -38,7 +38,8 @@ spec:
             pc.participantCurrencyId AS participantCurrencyId,
             tp.transferId AS transferId, 
             tp.createdDate AS createdDate, 
-            COALESCE(tscIn.reason, tscOut.reason) AS description, 
+            (CASE WHEN tsOut.enumeration != 'ABORTED' THEN 'SUCCESS' ELSE tsOut.enumeration END) AS status,
+            tscOut.reason AS description, 
             (CASE WHEN tp.amount < 0 THEN -tp.amount ELSE NULL END) AS fundsIn,
             (CASE WHEN tp.amount > 0 THEN tp.amount ELSE NULL END) AS fundsOut,
             ppc.value AS balance,
@@ -49,15 +50,17 @@ spec:
         INNER JOIN ledgerAccountType lat ON lat.ledgerAccountTypeId = pc.ledgerAccountTypeId
         INNER JOIN transferParticipant tp ON tp.participantCurrencyId = pc.participantCurrencyId
         INNER JOIN transferParticipantRoleType tpr ON tpr.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
-        LEFT JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId AND tscOut.transferStateId = 'RESERVED'
-        LEFT JOIN transferStateChange tscIn ON tp.transferId = tscIn.transferId AND tscIn.transferStateId = 'COMMITTED'
+        LEFT JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId 
+        INNER JOIN transferState tsOut ON tscOut.transferStateId = tsOut.transferStateId
         INNER JOIN participantPosition pp ON pp.participantCurrencyId = pc.participantCurrencyId
         INNER JOIN participantPositionChange ppc ON ppc.participantPositionId = pp.participantPositionId
         INNER JOIN currency c ON c.currencyId = pc.currencyId
 
         WHERE tpr.name = 'DFSP_SETTLEMENT' 
         AND p.name = :dfspId
-        AND (tscIn.transferStateChangeId = ppc.transferStateChangeId OR tscOut.transferStateChangeId = ppc.transferStateChangeId)
+        AND tscOut.transferStateChangeId = ppc.transferStateChangeId 
+        AND tsOut.enumeration in ('COMMITTED', 'RESERVED')
+        AND tscOut.transferStateChangeId = (SELECT MAX(transferStateChangeId) FROM transferStateChange tscOut1 WHERE tscOut1.transferId = tp.transferId )
         AND ( tp.createdDate BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
         ORDER BY p.name, pc.currencyId, pc.participantCurrencyId, ppc.participantPositionChangeId
   template: |
