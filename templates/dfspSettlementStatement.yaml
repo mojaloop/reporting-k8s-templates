@@ -31,38 +31,41 @@ spec:
         WHERE p.name = :dfspId AND p.name != 'Hub' AND lat.name = 'SETTLEMENT'
     - name: report
       query: |
-        SELECT
+        SELECT participantId, name, currencyId, participantCurrencyId, transferId, createdDate, status, description, fundsIn, fundsOut, balance, currencyScale, accountType FROM (
+          SELECT
             p.participantId AS participantId,
             p.name AS name,
             pc.currencyId AS currencyId,
             pc.participantCurrencyId AS participantCurrencyId,
             tp.transferId AS transferId, 
             tp.createdDate AS createdDate, 
-            (CASE WHEN tsOut.enumeration != 'ABORTED' THEN 'SUCCESS' ELSE tsOut.enumeration END) AS status,
-            tscOut.reason AS description, 
+            (CASE WHEN COALESCE(tsIn.enumeration, tsOut.enumeration) != 'ABORTED' THEN 'SUCCESS' ELSE tsOut.enumeration END) AS status,
+            COALESCE(tscIn.reason, tscOut.reason) AS description,
             (CASE WHEN tp.amount < 0 THEN -tp.amount ELSE NULL END) AS fundsIn,
             (CASE WHEN tp.amount > 0 THEN tp.amount ELSE NULL END) AS fundsOut,
             ppc.value AS balance,
             c.scale AS  currencyScale,
             lat.name AS accountType
-        FROM participant p 
-        INNER JOIN participantCurrency pc ON p.participantId = pc.participantId 
-        INNER JOIN ledgerAccountType lat ON lat.ledgerAccountTypeId = pc.ledgerAccountTypeId
-        INNER JOIN transferParticipant tp ON tp.participantCurrencyId = pc.participantCurrencyId
-        INNER JOIN transferParticipantRoleType tpr ON tpr.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
-        LEFT JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId 
-        INNER JOIN transferState tsOut ON tscOut.transferStateId = tsOut.transferStateId
-        INNER JOIN participantPosition pp ON pp.participantCurrencyId = pc.participantCurrencyId
-        INNER JOIN participantPositionChange ppc ON ppc.participantPositionId = pp.participantPositionId
-        INNER JOIN currency c ON c.currencyId = pc.currencyId
-
-        WHERE tpr.name = 'DFSP_SETTLEMENT' 
-        AND p.name = :dfspId
-        AND tscOut.transferStateChangeId = ppc.transferStateChangeId 
-        AND tsOut.enumeration in ('COMMITTED', 'RESERVED')
-        AND tscOut.transferStateChangeId = (SELECT MAX(transferStateChangeId) FROM transferStateChange tscOut1 WHERE tscOut1.transferId = tp.transferId )
-        AND ( tp.createdDate BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
-        ORDER BY p.name, pc.currencyId, pc.participantCurrencyId, ppc.participantPositionChangeId
+          FROM participant p 
+          INNER JOIN participantCurrency pc ON p.participantId = pc.participantId 
+          INNER JOIN ledgerAccountType lat ON lat.ledgerAccountTypeId = pc.ledgerAccountTypeId
+          INNER JOIN transferParticipant tp ON tp.participantCurrencyId = pc.participantCurrencyId
+          INNER JOIN transferParticipantRoleType tpr ON tpr.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId  
+          LEFT JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId AND tscOut.transferStateChangeId = (SELECT MAX(transferStateChangeId) FROM transferStateChange tscOut1 WHERE tscOut1.transferId = tp.transferId
+            AND tscOut1.transferStateId in ('RESERVED', 'ABORTED_REJECTED'))
+          LEFT JOIN transferState tsOut ON tscOut.transferStateId = tsOut.transferStateId
+          LEFT JOIN transferStateChange tscIn ON tp.transferId = tscIn.transferId AND tscIn.transferStateChangeId = (SELECT MAX(transferStateChangeId) FROM transferStateChange tscIn1 WHERE tscIn1.transferId = tp.transferId
+            AND tscIn1.transferStateId in ('COMMITTED', 'ABORTED_REJECTED'))
+          LEFT JOIN transferState tsIn ON tscIn.transferStateId = tsIn.transferStateId
+          INNER JOIN participantPosition pp ON pp.participantCurrencyId = pc.participantCurrencyId
+          INNER JOIN participantPositionChange ppc ON ppc.participantPositionId = pp.participantPositionId
+          INNER JOIN currency c ON c.currencyId = pc.currencyId
+          WHERE tpr.name = 'DFSP_SETTLEMENT' 
+          AND p.name = :dfspId
+          AND (tscIn.transferStateChangeId = ppc.transferStateChangeId OR tscOut.transferStateChangeId = ppc.transferStateChangeId)
+          AND ( tp.createdDate BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
+          ORDER BY p.name, pc.currencyId, pc.participantCurrencyId, tp.createdDate) AS result
+        WHERE result.status != 'ABORTED'
   template: |
     <!DOCTYPE html>
 
