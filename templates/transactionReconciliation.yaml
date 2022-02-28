@@ -5,6 +5,7 @@ kind: MojaloopReport
 metadata:
   name: {{ printf "%s-%s" .Release.Name "tx-reconciliation" | trimPrefix "-" }}
 spec:
+  permission: report-tx-reconciliation
   endpoint:
     path: /transactionReconciliation
     params:
