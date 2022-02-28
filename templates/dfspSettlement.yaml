@@ -5,6 +5,7 @@ kind: MojaloopReport
 metadata:
   name: {{ printf "%s-%s" .Release.Name "dfsp-settlement" | trimPrefix "-" }}
 spec:
+  permission: report-dfsp-settlement
   endpoint:
     path: /dfspSettlement
     params:
