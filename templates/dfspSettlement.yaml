@@ -16,7 +16,7 @@ spec:
   queries:
     - name: dfspInfo
       query: |
-        SELECT participantId, name FROM participant WHERE participantId = :dfspId AND name != 'Hub'
+        SELECT participantId, name FROM participant WHERE name = :dfspId AND name != 'Hub'
     - name: report
       query: |
         SELECT settlementId,
