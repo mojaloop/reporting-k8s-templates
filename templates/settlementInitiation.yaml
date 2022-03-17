@@ -49,7 +49,7 @@ spec:
             }
 
             td, th {
-    //            border: 1px solid #efefef;
+                border: 1px solid black;
                 text-align: left;
                 padding: 8px;
             }
@@ -60,6 +60,9 @@ spec:
 
             td > span {
                 font-weight: bold;
+            }
+            tr.noborder td {
+                border: none;
             }
         </style>
         <title>Settlement Bank Report</title>
@@ -91,7 +94,7 @@ spec:
     %>
 
     <table>
-        <tr>
+        <tr> 
             <td><span>Settlement ID</span></td>
             <td style="text-align: right"><%= settlementId[0].settlementId %></td>
         </tr>
@@ -107,9 +110,9 @@ spec:
             <td><span>Timezone</span></td>
             <td style="text-align: right">MMT</td>
         </tr>
-
-        <tr><td></td><td></td></tr>
-
+        <tr class = "noborder">
+            <td colspan="100%" style="padding-top: 20px"></td>
+        </tr>
         <tr>
             <td>Participant (PayerFSP Identifier)</td>
             <td>Participant (Bank Identifier)</td>
@@ -129,5 +132,5 @@ spec:
     </table>
     </body>
     </html>
-
-{{- end }}
+    
+    {{- end }}

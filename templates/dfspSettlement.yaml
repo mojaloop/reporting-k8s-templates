@@ -112,13 +112,13 @@ spec:
             }
 
             th {
-            //            border: 1px solid #efefef;
+                border: 1px solid black;
                 text-align: left;
-                padding: 0 8px;
+                padding: 8px;
             }
 
             td {
-    //            border: 1px solid #efefef;
+                border: 1px solid black;
                 padding: 8px;
             }
 
@@ -128,6 +128,9 @@ spec:
 
             td > span {
                 font-weight: bold;
+            }
+            tr.noborder td {
+                border: none;
             }
         </style>
         <title>FSP Settlement Report</title>
@@ -158,7 +161,7 @@ spec:
             <td><span>Created Date</span></td>
             <td colspan="2" style="text-align: right"><%= report[0] && (d = report[0].createdDate, `${d.toLocaleDateString('en-ZA')} ${d.toLocaleTimeString('en-US')}`)%></td>
         </tr>
-        <tr>
+        <tr class = "noborder">
             <td></td>
             <td></td>
             <td></td>
@@ -166,8 +169,8 @@ spec:
             <td></td>
             <td></td>
             <td></td>
-            <td><span>Last Action Date</span></td>
-            <td colspan="2" style="text-align: right"><%=
+            <td style="border: 1px solid black"><span>Last Action Date</span></td>
+            <td colspan="2" style="text-align: right;border: 1px solid black"><%=
                 report[0] &&
                 (d = report
                         .filter(a => a.lastActionDate)
@@ -175,7 +178,7 @@ spec:
                         `${d.toLocaleDateString('en-ZA')} ${d.toLocaleTimeString('en-US')}`)
                 %></td>
         </tr>
-        <tr>
+        <tr class = "noborder">
             <td colspan="100%" style="padding-top: 20px"></td>
         </tr>
         <tr>
@@ -215,11 +218,11 @@ spec:
         <% } %>
 
         <tr>
-            <td colspan="8" style="padding-top: 30px"><span>Aggregated Net Positions</span></td>
+            <td colspan="8" style="padding-top: 15px"><span>Aggregated Net Positions</span></td>
             <td style="text-align: right"><%= report[0] && formatNetPosition(report.reduce((a, b) => a + (parseFloat(b.netAmount) || 0), 0), report[0]?.currencyId, report[0]?.currencyScale) %></td>
         </tr>
     </table>
     </body>
     </html>
-
-{{- end }}
+    
+{{- end }}    
