@@ -86,7 +86,7 @@ spec:
             }
 
             td {
-    //            border: 1px solid #efefef;
+                border: 1px solid black;
                 padding: 8px;
             }
 
@@ -97,6 +97,9 @@ spec:
             td > span {
                 font-weight: bold;
             }
+            tr.noborder td {
+                border: none;
+            }            
         </style>
         <title>FSP Settlement Report</title>
     </head>
@@ -107,7 +110,7 @@ spec:
     %>
 
     <table data-json="<%= JSON.stringify(report) %>">
-        <tr>
+         <tr>
             <td>Participant ID</td>
             <td style="text-align: right"><%= dfspInfo[0]?.participantId %></td>
             <td>FSP ID</td>
@@ -120,10 +123,8 @@ spec:
             <td style="wisth: 20px"></td>
             <td>Currency</td>
             <td><%= report[0]?.currencyId %></td>
-            <td></td>
-            <td></td>
         </tr>
-        <tr>
+        <tr class = "noborder">
             <td colspan="14" style="padding-top: 20px"></td>
         </tr>
         <tr>
