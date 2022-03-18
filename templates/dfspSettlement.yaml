@@ -103,7 +103,8 @@ spec:
     <head>
         <style>
             table {
-                font-family: arial, sans-serif;
+                font-family: Calibri;
+                font-size: 11pt;
                 border-collapse: collapse;
                 width: 100%;
                 display: block;
@@ -149,7 +150,7 @@ spec:
     }
     %>
 
-    <table data-json="<%= JSON.stringify(report) %>">
+    <table data-json="<%= JSON.stringify(report) %>" data-sheet-name="DFSPSettlementReport">
         <tr>
             <td><span>Report for:</span></td>
             <td><span>FSP ID</span></td>

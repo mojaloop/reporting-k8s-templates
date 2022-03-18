@@ -71,14 +71,14 @@ spec:
     <head>
         <style>
             table {
-                font-family: arial, sans-serif;
+                font-family: Calibri;
+                font-size: 11pt;
                 border-collapse: collapse;
                 width: 100%;
                 display: block;
                 overflow-x: auto;
                 white-space: nowrap;
             }
-
             th {
             //            border: 1px solid #efefef;
                 text-align: left;
@@ -109,7 +109,7 @@ spec:
         const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
     %>
 
-    <table data-json="<%= JSON.stringify(report) %>">
+    <table data-json="<%= JSON.stringify(report) %>" data-sheet-name="DFSPSettlementDetailReport">
          <tr>
             <td>Participant ID</td>
             <td style="text-align: right"><%= dfspInfo[0]?.participantId %></td>
