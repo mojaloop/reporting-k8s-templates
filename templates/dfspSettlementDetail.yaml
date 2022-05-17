@@ -1,5 +1,4 @@
 {{- if .Values.templates.dfspSettlementDetail -}}
-
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
@@ -32,7 +31,8 @@ spec:
                 qpPayer.partyIdentifierValue as payerIdentifierValue,
                 pITPayee.name as payeeIdentifierType,
                 qpPayee.partyIdentifierValue as payeeIdentifierValue,
-                t.amount as amount,
+                IF(pPayee.name = :fspid, t.amount, 0) as receivedAmount,
+                IF(pPayer.name = :fspid, t.amount, 0) as sentAmount,
                 c.currencyId,
                 s.settlementId,
                 s.createdDate as settlementCreatedDate,
@@ -140,7 +140,8 @@ spec:
             <td>Sender ID</td>
             <td>Receiver ID Type</td>
             <td>Receiver ID</td>
-            <td>Amount</td>
+            <td>Received Amount</td>
+            <td>Sent Amount</td>
             <td>Fee</td>
         </tr>
         <% for(let e of report) { %>
@@ -157,12 +158,12 @@ spec:
                 <td><%= e.payerIdentifierValue %></td>
                 <td><%= e.payeeIdentifierType %></td>
                 <td><%= e.payeeIdentifierValue %></td>
-                <td><%= formatAmount(e.amount) %></td>
+                <td><%= formatAmount(e.receivedAmount) %></td>
+                <td><%= formatAmount(e.sentAmount) %></td>
                 <td>-</td>
             </tr>
         <% } %>
     </table>
     </body>
     </html>
-
 {{- end }}
