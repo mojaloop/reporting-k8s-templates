@@ -1,4 +1,4 @@
-{{- if .Values.templates.settlementAudit -}}
+-{{- if .Values.templates.settlementAudit -}}
 
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
@@ -77,17 +77,17 @@ spec:
 
     <head>
         <style>
-            table {
-                font-family: arial, sans-serif;
+           table {
+                font-family: Calibri;
+                font-size: 11pt;
                 border-collapse: collapse;
                 width: 100%;
                 display: block;
                 overflow-x: auto;
                 white-space: nowrap;
             }
-
             td, th {
-    //            border: 1px solid #efefef;
+                border: 1px solid black;
                 text-align: left;
                 padding: 8px;
             }
@@ -98,6 +98,9 @@ spec:
 
             td > span {
                 font-weight: bold;
+            }
+            tr.noborder td {
+                border: none;
             }
         </style>
         <title> DFSP Settlement Statement</title>
@@ -148,7 +151,7 @@ spec:
                 <td style="text-align: left"><%= element?.currencyId %></td>
             </tr>
 
-            <tr><td></td><td></td></tr>
+                   <tr class = "noborder"> <td colspan="100%" style="padding-top: 20px"></td></tr>
 
             <tr>
                 <th>Transfer Id</th>
@@ -182,5 +185,4 @@ spec:
     </body>
 
     </html>
-
 {{- end }}
