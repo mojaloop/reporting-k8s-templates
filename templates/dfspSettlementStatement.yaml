@@ -1,4 +1,4 @@
--{{- if .Values.templates.dfspSettlementStatement -}}
+{{- if .Values.templates.dfspSettlementStatement -}}
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
