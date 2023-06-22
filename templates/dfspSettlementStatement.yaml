@@ -126,7 +126,7 @@ spec:
     %>
 
 
-       <table  name=<%= `${element?.name}-${element?.currencyId}` %> data-sheet-name="DFSPSettlementStatement">
+       <table  name=<%= `${element?.name}-${element?.currencyId}` %> data-sheet-name="<%= `${element?.name}-${element?.currencyId}` %>">
             <tr>
                 <th><span>DFSP </span></th>
                 <td style="text-align: left"><%= element?.name %></td>

@@ -150,7 +150,7 @@ spec:
     }
     %>
 
-    <table data-json="<%= JSON.stringify(report) %>" data-sheet-name="<%= `${element?.name}-${element?.currencyId}` %>">
+    <table data-json="<%= JSON.stringify(report) %>" data-sheet-name="DFSPSettlement">
         <tr>
             <td><span>Report for:</span></td>
             <td><span>FSP ID</span></td>
