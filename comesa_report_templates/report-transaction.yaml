@@ -1,0 +1,216 @@
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: report-transaction
+  namespace: mojaloop
+spec:
+  endpoint:
+    path: /report-transaction
+  permission: transferApi
+  queries:
+  - name: transfers
+    query: |
+        select
+            `transfer`.*,
+            ft.*,
+            `transfer`.`currencyId` as `currency`,
+            `tp1`.`amount` as `payerAmount`,
+            `da`.`participantId` as `payerParticipantId`,
+            `da`.`name` as `payerFsp`,
+            `tp2`.`amount` as `payeeAmount`,
+            `ca`.`participantId` as `payeeParticipantId`,
+            `ca`.`name` as `payeeFsp`,
+            `fda`.`name` as `fxpName`,
+            `tsc`.`transferStateId` as `transferState`,
+            `tsc`.`reason` as `reason`,
+            `tsc`.`createdDate` as `completedTimestamp`
+        from
+            `transfer`
+        inner join `transferParticipant` as `tp1` on
+            `tp1`.`transferId` = `transfer`.`transferId`
+        inner join `transferParticipantRoleType` as `tprt1` on
+            `tprt1`.`transferParticipantRoleTypeId` = `tp1`.`transferParticipantRoleTypeId`
+        inner join `participant` as `da` on
+            `da`.`participantId` = `tp1`.`participantId`
+        inner join `transferParticipant` as `tp2` on
+            `tp2`.`transferId` = `transfer`.`transferId`
+        inner join `transferParticipantRoleType` as `tprt2` on
+            `tprt2`.`transferParticipantRoleTypeId` = `tp2`.`transferParticipantRoleTypeId`
+        inner join `participant` as `ca` on
+            `ca`.`participantId` = `tp2`.`participantId`
+        inner join (select tsc1.transferId, max(tsc1.transferStateChangeId) as maxTransferStateChangeId from `transferStateChange` as `tsc1` group by tsc1.transferId) as ts on
+            `ts`.`transferId` = `transfer`.`transferId`
+        inner join `transferStateChange` as `tsc` on
+            `tsc`.`transferStateChangeId` = `ts`.`maxTransferStateChangeId`
+        inner join `fxTransfer` as ft on
+            ft.determiningTransferId = transfer.transferId
+        inner join `fxTransferParticipant` as `ftp1` on
+            `ftp1`.`commitRequestId` = `ft`.`commitRequestId`
+        inner join `transferParticipantRoleType` as `ftprt1` on
+            `ftprt1`.`transferParticipantRoleTypeId` = `ftp1`.`transferParticipantRoleTypeId`
+        inner join `participant` as `fda` on
+            `fda`.`participantId` = `ftp1`.`participantId`
+        where
+            `tprt1`.`name` = 'PAYER_DFSP'
+            and `tprt2`.`name` = 'PAYEE_DFSP'
+            and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'
+        order by
+            `tsc`.`transferStateChangeId` desc;
+
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Transaction Report</title>
+        <style>
+            body {
+                font-family: 'Arial', sans-serif;
+                background-color: #f5f5f5;
+                margin: 0;
+                padding: 20px;
+                color: #333;
+            }
+
+            .container {
+                max-width: 100%;
+                margin: 0 auto;
+                background-color: #fff;
+                padding: 20px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #00447c;
+                padding-bottom: 10px;
+            }
+
+            .header h1 {
+                margin: 0;
+                color: #00447c;
+                font-size: 24px;
+            }
+
+            .header img {
+                max-height: 50px;
+            }
+
+            .summary {
+                margin-top: 20px;
+                padding: 15px;
+                background-color: #e9f3fa;
+                border-left: 6px solid #00447c;
+                border-radius: 5px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                max-width: 300px;
+            }
+
+            .summary p {
+                margin: 5px 0;
+                font-weight: bold;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }
+
+            table, th, td {
+                border: 1px solid #ddd;
+            }
+
+            th {
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
+            }
+
+            td {
+                padding: 10px;
+                text-align: left;
+                font-size: 0.9em;
+            }
+
+            tr:nth-child(even) {
+                background-color: #f2f2f2;
+            }
+
+            .smallFont {
+                font-size: 0.7em;
+            }
+
+            .footer {
+                margin-top: 20px;
+                text-align: center;
+                font-size: 0.9em;
+                color: #666;
+            }
+
+            .footer p {
+                margin: 5px 0;
+            }
+        </style>
+    </head>
+
+    <body>
+
+        <div class="container">
+            <div class="header">
+                <h1>Transaction Report</h1>
+                <img src="https://comesabusinesscouncil.org/wp-content/uploads/2022/10/cropped-cropped-cropped-cbc_logo-1.jpg" alt="Logo">
+            </div>
+
+            <div class="summary">
+                <p>For Regional Hub:</p>
+                <p>Total Transactions: <%= transfers.length %></p>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Transaction ID</th>
+                        <th>Date</th>
+                        <th>Payer Institution</th>
+                        <th>Payee Institution</th>
+                        <th>Conversion Institution</th>
+                        <th>Send Amount</th>
+                        <th>Send Currency</th>
+                        <th>Receive Amount</th>
+                        <th>Receive Currency</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <% for(let tr of transfers) { %>
+                    <tr>
+                        <td class='smallFont'><%= tr.transferId %></td>
+                        <td class='smallFont'><%= tr.createdDate.toUTCString() %></td>
+                        <td><%= tr.payerFsp %></td>
+                        <td><%= tr.payeeFsp %></td>
+                        <td><%= tr.fxpName %></td>
+                        <td><%= tr.sourceAmount %></td>
+                        <td><%= tr.sourceCurrency %></td>
+                        <td><%= tr.targetAmount %></td>
+                        <td><%= tr.targetCurrency %></td>
+                        <td><%= tr.transferState %></td>
+                    </tr>
+                <% } %>
+                </tbody>
+            </table>
+
+            <div class="footer">
+                <p>Generated on: <%= (new Date()).toUTCString() %></p>
+            </div>
+        </div>
+
+    </body>
+    </html>
+status:
+  state: VALID
