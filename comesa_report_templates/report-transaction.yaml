@@ -11,6 +11,10 @@ spec:
   - name: transfers
     query: |
         select
+        	qp1.fspId as endPayerFsp,
+        	qp1.partyIdentifierValue as payerIdentifierValue,
+        	qp2.fspId as endPayeeFsp,
+        	qp2.partyIdentifierValue as payeeIdentifierValue,
             `transfer`.*,
             ft.*,
             `transfer`.`currencyId` as `currency`,
@@ -45,11 +49,19 @@ spec:
         inner join `fxTransfer` as ft on
             ft.determiningTransferId = transfer.transferId
         inner join `fxTransferParticipant` as `ftp1` on
-            `ftp1`.`commitRequestId` = `ft`.`commitRequestId`
+            `ftp1`.`commitRequestId` = `ft`.`commitRequestId` and `ftp1`.fxParticipantCurrencyTypeId  = 1
         inner join `transferParticipantRoleType` as `ftprt1` on
             `ftprt1`.`transferParticipantRoleTypeId` = `ftp1`.`transferParticipantRoleTypeId`
         inner join `participant` as `fda` on
             `fda`.`participantId` = `ftp1`.`participantId`
+        inner join fxQuoteConversionTerms fqct on
+        	fqct.conversionId = `ft`.`commitRequestId`
+        inner join quote q on
+            q.transactionReferenceId = transfer.transferId 
+        inner join quoteParty qp1 on
+            qp1.quoteId = q.quoteId and qp1.partyTypeId = tprt1.transferParticipantRoleTypeId
+        inner join quoteParty qp2 on
+            qp2.quoteId = q.quoteId and qp2.partyTypeId = tprt2.transferParticipantRoleTypeId
         where
             `tprt1`.`name` = 'PAYER_DFSP'
             and `tprt2`.`name` = 'PAYEE_DFSP'
@@ -190,10 +202,10 @@ spec:
                 <tbody>
                 <% for(let tr of transfers) { %>
                     <tr>
-                        <td class='smallFont'><%= tr.transferId %></td>
+                        <td class='smallFont'><a href='report-transaction-detail?transferId=<%= tr.transferId %>' target='_blank'><%= tr.transferId %></a></td>
                         <td class='smallFont'><%= tr.createdDate.toUTCString() %></td>
-                        <td><%= tr.payerFsp %></td>
-                        <td><%= tr.payeeFsp %></td>
+                        <td><%= tr.endPayerFsp + (tr.payerFsp != tr.endPayerFsp ? ` (${tr.payerFsp})` : '') %></td>
+                        <td><%= tr.endPayeeFsp + (tr.payeeFsp != tr.endPayeeFsp ? ` (${tr.payeeFsp})` : '') %></td>
                         <td><%= tr.fxpName %></td>
                         <td><%= tr.sourceAmount %></td>
                         <td><%= tr.sourceCurrency %></td>

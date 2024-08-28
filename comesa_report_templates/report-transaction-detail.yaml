@@ -49,7 +49,7 @@ spec:
         inner join `fxTransfer` as ft on
             ft.determiningTransferId = transfer.transferId
         inner join `fxTransferParticipant` as `ftp1` on
-            `ftp1`.`commitRequestId` = `ft`.`commitRequestId`
+            `ftp1`.`commitRequestId` = `ft`.`commitRequestId` and `ftp1`.fxParticipantCurrencyTypeId  = 1
         inner join `transferParticipantRoleType` as `ftprt1` on
             `ftprt1`.`transferParticipantRoleTypeId` = `ftp1`.`transferParticipantRoleTypeId`
         inner join `participant` as `fda` on
@@ -58,6 +58,7 @@ spec:
             `tprt1`.`name` = 'PAYER_DFSP'
             and `tprt2`.`name` = 'PAYEE_DFSP'
             and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'
+            and `transfer`.`transferId` = :transferId
 
   template: |
     <!DOCTYPE html>
