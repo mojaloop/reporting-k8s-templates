@@ -64,7 +64,7 @@ spec:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Transaction Report</title>
+        <title>DRPP Transaction Report</title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -163,7 +163,7 @@ spec:
 
         <div class="container">
             <div class="header">
-                <h1>Transaction Report</h1>
+                <h1>DRPP Transaction Report</h1>
                 <img src="https://comesabusinesscouncil.org/wp-content/uploads/2022/10/cropped-cropped-cropped-cbc_logo-1.jpg" alt="Logo">
             </div>
 

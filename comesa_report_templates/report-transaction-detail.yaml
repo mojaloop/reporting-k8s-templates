@@ -1,0 +1,343 @@
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: report-transaction-detail
+spec:
+  endpoint:
+    params:
+      - name: transferId
+        required: true
+    path: /report-transaction-detail
+  permission: transferApi
+  queries:
+    - name: transfers
+      query: >
+        select
+            `transfer`.*,
+            ft.*,
+            `transfer`.`currencyId` as `currency`,
+            `tp1`.`amount` as `payerAmount`,
+            `da`.`participantId` as `payerParticipantId`,
+            `da`.`name` as `payerFsp`,
+            `tp2`.`amount` as `payeeAmount`,
+            `ca`.`participantId` as `payeeParticipantId`,
+            `ca`.`name` as `payeeFsp`,
+            `fda`.`name` as `fxpName`,
+            `tsc`.`transferStateId` as `transferState`,
+            `tsc`.`reason` as `reason`,
+            `tsc`.`createdDate` as `completedTimestamp`
+        from
+            `transfer`
+        inner join `transferParticipant` as `tp1` on
+            `tp1`.`transferId` = `transfer`.`transferId`
+        inner join `transferParticipantRoleType` as `tprt1` on
+            `tprt1`.`transferParticipantRoleTypeId` = `tp1`.`transferParticipantRoleTypeId`
+        inner join `participant` as `da` on
+            `da`.`participantId` = `tp1`.`participantId`
+        inner join `transferParticipant` as `tp2` on
+            `tp2`.`transferId` = `transfer`.`transferId`
+        inner join `transferParticipantRoleType` as `tprt2` on
+            `tprt2`.`transferParticipantRoleTypeId` = `tp2`.`transferParticipantRoleTypeId`
+        inner join `participant` as `ca` on
+            `ca`.`participantId` = `tp2`.`participantId`
+        inner join (select tsc1.transferId, max(tsc1.transferStateChangeId) as
+        maxTransferStateChangeId from `transferStateChange` as `tsc1` group by
+        tsc1.transferId) as ts on
+            `ts`.`transferId` = `transfer`.`transferId`
+        inner join `transferStateChange` as `tsc` on
+            `tsc`.`transferStateChangeId` = `ts`.`maxTransferStateChangeId`
+        inner join `fxTransfer` as ft on
+            ft.determiningTransferId = transfer.transferId
+        inner join `fxTransferParticipant` as `ftp1` on
+            `ftp1`.`commitRequestId` = `ft`.`commitRequestId`
+        inner join `transferParticipantRoleType` as `ftprt1` on
+            `ftprt1`.`transferParticipantRoleTypeId` = `ftp1`.`transferParticipantRoleTypeId`
+        inner join `participant` as `fda` on
+            `fda`.`participantId` = `ftp1`.`participantId`
+        where
+            `tprt1`.`name` = 'PAYER_DFSP'
+            and `tprt2`.`name` = 'PAYEE_DFSP'
+            and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'
+
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DRPP Transaction Report</title>
+        <style>
+            body {
+                font-family: 'Arial', sans-serif;
+                background-color: #f5f5f5;
+                margin: 0;
+                padding: 20px;
+                color: #333;
+            }
+
+            .container {
+                max-width: 100%;
+                margin: 0 auto;
+                background-color: #fff;
+                padding: 20px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #00447c;
+                padding-bottom: 10px;
+            }
+
+            .header h1 {
+                margin: 0;
+                color: #00447c;
+                font-size: 24px;
+            }
+
+            .header img {
+                max-height: 50px;
+            }
+
+            .summary {
+                margin-top: 20px;
+                padding: 15px;
+                background-color: #e9f3fa;
+                border-left: 6px solid #00447c;
+                border-radius: 5px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                max-width: 500px;
+            }
+
+            .summary p {
+                margin: 5px 0;
+                font-weight: bold;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }
+
+            table, th, td {
+                border: 1px solid #ddd;
+            }
+
+            th {
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
+            }
+
+            td {
+                line-height: 1.6;
+                padding: 10px;
+                text-align: left;
+                font-size: 0.9em;
+            }
+
+            tr:nth-child(even) {
+                background-color: #f2f2f2;
+            }
+
+            .smallFont {
+                font-size: 0.7em;
+            }
+
+            .thStyle {
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
+            }
+
+            .footer {
+                margin-top: 20px;
+                text-align: center;
+                font-size: 0.9em;
+                color: #666;
+            }
+
+            .footer p {
+                margin: 5px 0;
+            }
+        </style>
+    </head>
+
+    <%
+      const transferId = transfers[0].transferId;
+      const submittedAt = transfers[0].createdDate.toUTCString();
+      const sourceAmount = transfers[0].sourceAmount;
+      const sourceCurrency = transfers[0].sourceCurrency;
+      const targetAmount = transfers[0].targetAmount;
+      const targetCurrency = transfers[0].targetCurrency;
+      const payerFspName = transfers[0].payerFsp;
+      const payeeFspName = transfers[0].payeeFsp;
+      const fxpName = transfers[0].fxpName;
+
+    %>
+    <body>
+
+        <div class="container">
+            <div class="header">
+                <h1>DRPP Transaction Detail Report</h1>
+                <img src="https://comesabusinesscouncil.org/wp-content/uploads/2022/10/cropped-cropped-cropped-cbc_logo-1.jpg" alt="Logo">
+            </div>
+
+            <div class="summary">
+                <p>For Regional Hub</p>
+                <p>Transfer ID: <%= transferId %></p>
+                <p>State: </p>
+                <p>Base use case: </p>
+                <p>Type: </p>
+            </div>
+
+            <table>
+                <tbody>
+                  <tr>
+                    <td>Transfer Description</td>
+                    <td>
+                      At <i>"<%=submittedAt%>"</i>" <b><%=sourceAmount%> <%=sourceCurrency%></b> was transfered from "<%=payerFspName%>" to "<%=payeeFspName%>" who received <b><%=targetAmount%> <%=targetCurrency%></b>.
+                      <br />"<%=payerFspName%>" [was represented by {Payer Proxy} who] was debited by <%=sourceAmount%> <%=sourceCurrency%>.
+                      <br />"<%=payeeFspName%>" [was represented by {Payee Proxy} who] was debited by <%=targetAmount%> <%=targetCurrency%>.
+                      <br />{Conversion Type} was performed by <%=fxpName%> [and was represented by {FXP Proxy}].
+                    </td>
+                </tr>
+                <tr>
+                  <td>Payer Details</td>
+                  <td>
+                    {Payer Itentifier} {Payer Identifier Type} at {Payer DFSP}
+                    {Payer First Name}; {Payer Middle Name}; {Payer Last Name}
+                    Supporting these currencies: {Payer Supported currencies}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Payee Details</td>
+                  <td>
+                    {Payee Itentifier} {Payee Identifier Type} at {Payee DFSP}
+                    {Payee First Name}; {Payee Middle Name}; {Payee Last Name}
+                    Supporting these currencies: {Payee Supported currencies}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Transfer Terms</td>
+                  <td>
+                    Transfer Amount {Transfer Amount} {Transfer Currency}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Payee Receive Amount {Transfer Payee Receive Amount} {Transfer Payee Receive Amount Currency}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Payee DFSP Fee {Transfer Payee DFSP Fee} {Transfer Payee DFSP Fee Currency}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Payee DFSP Commission {Transfer Payee DFSP Commission} {Transfer Payee DFSP Commission Currency}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Transfer Expiry {Transfer Expiry}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Currency Conversions Terms</td>
+                  <td>
+                    Send Amount {Send Amount} {Send Currency}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Receive Amount {Receive Amount} {Receive Currency}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Conversion Charge Amount {Send Currency Conversion Charges} {Send Currency}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Conversion Charge Amount {Receive Currency Conversion Charges} {Receive Currency}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Exchange Rate {Send Amount - Send Currency Converion Charges}/{Receive Amount - Receive Currency Conversion Charges}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Conversion Expiry {Conversion Expiry}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Conversion Settlement Batch</td>
+                  <td>
+                    {Conversion Settlement Batch Id}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Technical Details</td>
+                  <td>
+                    Transaction Id {Transaction Id}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Transfer Id {Transfer Id}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Quote Id {Quote Id}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Conversion Id {Conversion Id}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Conversion Quote Id {Conversion Quote Id}
+                  </td>
+                </tr>
+                <tr>
+                  <td></td>
+                  <td>
+                    Conversion State {Conversion State}
+                  </td>
+                </tr>
+            </table>
+
+            <div class="footer">
+                <p>Generated on: test</p>
+            </div>
+        </div>
+
+    </body>
+    </html>
