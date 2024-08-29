@@ -13,6 +13,10 @@ spec:
     - name: transfers
       query: >
         select
+        	qp1.fspId as endPayerFsp,
+        	qp1.partyIdentifierValue as payerIdentifierValue,
+        	qp2.fspId as endPayeeFsp,
+        	qp2.partyIdentifierValue as payeeIdentifierValue,
             `transfer`.*,
             ft.*,
             `transfer`.`currencyId` as `currency`,
@@ -40,9 +44,7 @@ spec:
             `tprt2`.`transferParticipantRoleTypeId` = `tp2`.`transferParticipantRoleTypeId`
         inner join `participant` as `ca` on
             `ca`.`participantId` = `tp2`.`participantId`
-        inner join (select tsc1.transferId, max(tsc1.transferStateChangeId) as
-        maxTransferStateChangeId from `transferStateChange` as `tsc1` group by
-        tsc1.transferId) as ts on
+        inner join (select tsc1.transferId, max(tsc1.transferStateChangeId) as maxTransferStateChangeId from `transferStateChange` as `tsc1` group by tsc1.transferId) as ts on
             `ts`.`transferId` = `transfer`.`transferId`
         inner join `transferStateChange` as `tsc` on
             `tsc`.`transferStateChangeId` = `ts`.`maxTransferStateChangeId`
@@ -54,11 +56,19 @@ spec:
             `ftprt1`.`transferParticipantRoleTypeId` = `ftp1`.`transferParticipantRoleTypeId`
         inner join `participant` as `fda` on
             `fda`.`participantId` = `ftp1`.`participantId`
+        inner join fxQuoteConversionTerms fqct on
+        	fqct.conversionId = `ft`.`commitRequestId`
+        inner join quote q on
+            q.transactionReferenceId = transfer.transferId 
+        inner join quoteParty qp1 on
+            qp1.quoteId = q.quoteId and qp1.partyTypeId = tprt1.transferParticipantRoleTypeId
+        inner join quoteParty qp2 on
+            qp2.quoteId = q.quoteId and qp2.partyTypeId = tprt2.transferParticipantRoleTypeId
         where
             `tprt1`.`name` = 'PAYER_DFSP'
             and `tprt2`.`name` = 'PAYEE_DFSP'
             and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'
-            and `transfer`.`transferId` = :transferId
+            and `transfer`.`transferId` = :transferId;
 
   template: |
     <!DOCTYPE html>
@@ -171,19 +181,21 @@ spec:
     </head>
 
     <%
-      const transferId = transfers[0].transferId;
-      const submittedAt = transfers[0].createdDate.toUTCString();
-      const sourceAmount = transfers[0].sourceAmount;
-      const sourceCurrency = transfers[0].sourceCurrency;
-      const targetAmount = transfers[0].targetAmount;
-      const targetCurrency = transfers[0].targetCurrency;
-      const payerFspName = transfers[0].payerFsp;
-      const payeeFspName = transfers[0].payeeFsp;
-      const fxpName = transfers[0].fxpName;
+      const transferId = transfers[0]?.transferId;
+      const submittedAt = transfers[0]?.createdDate.toUTCString();
+      const sourceAmount = transfers[0]?.sourceAmount;
+      const sourceCurrency = transfers[0]?.sourceCurrency;
+      const targetAmount = transfers[0]?.targetAmount;
+      const targetCurrency = transfers[0]?.targetCurrency;
+      const payerProxyName = transfers[0]?.payerFsp;
+      const payerFspName = transfers[0]?.endPayerFsp;
+      const payeeProxyName = transfers[0]?.payeeFsp;
+      const payeeFspName = transfers[0]?.endPayeeFsp;
+      const fxpName = transfers[0]?.fxpName;
+      const transferState = transfers[0]?.transferState;
 
     %>
     <body>
-
         <div class="container">
             <div class="header">
                 <h1>DRPP Transaction Detail Report</h1>
@@ -193,20 +205,20 @@ spec:
             <div class="summary">
                 <p>For Regional Hub</p>
                 <p>Transfer ID: <%= transferId %></p>
-                <p>State: </p>
-                <p>Base use case: </p>
-                <p>Type: </p>
+                <p>State: <%= transferState %></p>
             </div>
-
+            <div>
+              <br /><a href="report-transaction?format=html">View all Transactions</a>
+            </div>
             <table>
                 <tbody>
                   <tr>
                     <td>Transfer Description</td>
                     <td>
                       At <i>"<%=submittedAt%>"</i>" <b><%=sourceAmount%> <%=sourceCurrency%></b> was transfered from "<%=payerFspName%>" to "<%=payeeFspName%>" who received <b><%=targetAmount%> <%=targetCurrency%></b>.
-                      <br />"<%=payerFspName%>" [was represented by {Payer Proxy} who] was debited by <%=sourceAmount%> <%=sourceCurrency%>.
-                      <br />"<%=payeeFspName%>" [was represented by {Payee Proxy} who] was debited by <%=targetAmount%> <%=targetCurrency%>.
-                      <br />{Conversion Type} was performed by <%=fxpName%> [and was represented by {FXP Proxy}].
+                      <br />"<%=payerFspName%>" <%= payerFspName==payerProxyName ? `[was represented by ${payerProxyName} who]` : '' %> was debited by <%=sourceAmount%> <%=sourceCurrency%>.
+                      <br />"<%=payeeFspName%>" <%= payeeFspName==payeeProxyName ? `[was represented by ${payeeProxyName} who]` : '' %> was debited by <%=targetAmount%> <%=targetCurrency%>.
+                      <br />Conversion was performed by <%=fxpName%>.
                     </td>
                 </tr>
                 <tr>
