@@ -382,8 +382,8 @@ spec:
                         <tr>
                           <td>
                             At <i><%=submittedAt%></i> <b><%=sourceAmount%> <%=sourceCurrency%></b> was transferred from <%=payerFspName%> to <%=payeeFspName%> who received <b><%=targetAmount%> <%=targetCurrency%></b>.
-                            <br /><%=payerFspName%> <%= payerFspName==payerProxyName ? `[was represented by ${payerProxyName} who]` : '' %> was debited by <%=sourceAmount%> <%=sourceCurrency%>.
-                            <br /><%=payeeFspName%> <%= payeeFspName==payeeProxyName ? `[was represented by ${payeeProxyName} who]` : '' %> was credited by <%=targetAmount%> <%=targetCurrency%>.
+                            <br /><%=payerFspName%> <%= payerFspName!=payerProxyName ? `was represented by ${payerProxyName} who` : '' %> was debited by <%=sourceAmount%> <%=sourceCurrency%>.
+                            <br /><%=payeeFspName%> <%= payeeFspName!=payeeProxyName ? `was represented by ${payeeProxyName} who` : '' %> was credited by <%=targetAmount%> <%=targetCurrency%>.
                             <br />Conversion was performed by <%=fxpName%>.
                           </td>
                         </tr>
