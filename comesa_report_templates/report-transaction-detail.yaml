@@ -11,9 +11,104 @@ spec:
   permission: transferApi
   queries:
     - name: transfers
-      query: "select\n\tqp1.fspId as endPayerFsp,\n  payerpit.name as payerIdentifierTypeName,\n\tqp1.partyIdentifierValue as payerIdentifierValue,\n  qp1.partyName as payerName,\n\tqp2.fspId as endPayeeFsp,\n  payeepit.name as payeeIdentifierTypeName,\n\tqp2.partyIdentifierValue as payeeIdentifierValue,\n  qp2.partyName as payeeName,\n  q.quoteId as quoteId,\n  q.transactionReferenceId as transactionReferenceId,\n  fqct.conversionId as conversionId,\n  fqct.expirationDate as conversionExpiry,\n  ft.commitRequestId as commitRequestId,\n  transfer.expirationDate as transferExpiry,\n  qr.payeeFspFeeAmount as payeeFspFeeAmount,\n  qr.payeeFspCommissionAmount as payeeFspCommissionAmount,\n  fqrct.sourceAmount as conversionTermsSourceAmount,\n  fqrct.targetAmount as conversionTermsTargetAmount,\n  fxtsc.transferStateId as fxTransferState,\n    `transfer`.*,\n    ft.*,\n    `transfer`.`currencyId` as `currency`,\n    `tp1`.`amount` as `payerAmount`,\n    `da`.`participantId` as `payerParticipantId`,\n    `da`.`name` as `payerFsp`,\n    `tp2`.`amount` as `payeeAmount`,\n    `ca`.`participantId` as `payeeParticipantId`,\n    `ca`.`name` as `payeeFsp`,\n    `fda`.`name` as `fxpName`,\n    `tsc`.`transferStateId` as `transferState`,\n    `tsc`.`reason` as `reason`,\n    `tsc`.`createdDate` as `completedTimestamp`\nfrom\n    `transfer`\ninner join `transferParticipant` as `tp1` on\n    `tp1`.`transferId` = `transfer`.`transferId`\ninner join `transferParticipantRoleType` as `tprt1` on\n    `tprt1`.`transferParticipantRoleTypeId` = `tp1`.`transferParticipantRoleTypeId`\ninner join `participant` as `da` on\n    `da`.`participantId` = `tp1`.`participantId`\ninner join `transferParticipant` as `tp2` on\n    `tp2`.`transferId` = `transfer`.`transferId`\ninner join `transferParticipantRoleType` as `tprt2` on\n    `tprt2`.`transferParticipantRoleTypeId` = `tp2`.`transferParticipantRoleTypeId`\ninner join `participant` as `ca` on\n    `ca`.`participantId` = `tp2`.`participantId`\ninner join (select tsc1.transferId, max(tsc1.transferStateChangeId) as maxTransferStateChangeId from `transferStateChange` as `tsc1` group by tsc1.transferId) as ts on\n    `ts`.`transferId` = `transfer`.`transferId`\ninner join `transferStateChange` as `tsc` on\n    `tsc`.`transferStateChangeId` = `ts`.`maxTransferStateChangeId`\ninner join `fxTransfer` as ft on\n    ft.determiningTransferId = transfer.transferId\ninner join (select fxtsc1.commitRequestId, max(fxtsc1.fxTransferStateChangeId) as maxFxTransferStateChangeId from `fxTransferStateChange` as `fxtsc1` group by fxtsc1.commitRequestId) as fxts on\n    `fxts`.`commitRequestId` = `ft`.`commitRequestId`\ninner join `transferStateChange` as `fxtsc` on\n    `fxtsc`.`transferStateChangeId` = `fxts`.`maxFxTransferStateChangeId`\ninner join `fxTransferParticipant` as `ftp1` on\n    `ftp1`.`commitRequestId` = `ft`.`commitRequestId` and `ftp1`.fxParticipantCurrencyTypeId  = 1\ninner join `transferParticipantRoleType` as `ftprt1` on\n    `ftprt1`.`transferParticipantRoleTypeId` = `ftp1`.`transferParticipantRoleTypeId`\ninner join `participant` as `fda` on\n    `fda`.`participantId` = `ftp1`.`participantId`\ninner join fxQuoteConversionTerms fqct on\n\tfqct.conversionId = `ft`.`commitRequestId`\ninner join fxQuoteResponseConversionTerms fqrct on\n\tfqrct.conversionId = `ft`.`commitRequestId`\ninner join quote q on\n    q.transactionReferenceId = transfer.transferId\ninner join quoteParty qp1 on\n    qp1.quoteId = q.quoteId and qp1.partyTypeId = tprt1.transferParticipantRoleTypeId\ninner join quoteParty qp2 on\n    qp2.quoteId = q.quoteId and qp2.partyTypeId = tprt2.transferParticipantRoleTypeId\ninner join partyIdentifierType payerpit on\n    payerpit.partyIdentifierTypeId = qp1.partyIdentifierTypeId\ninner join partyIdentifierType payeepit on\n    payeepit.partyIdentifierTypeId = qp2.partyIdentifierTypeId\ninner join fxCharge fxc on\n    fxc.conversionId = fqrct.conversionId\ninner join quoteResponse qr on\n    qr.quoteId = q.quoteId\nwhere\n    `tprt1`.`name` = 'PAYER_DFSP'\n    and `tprt2`.`name` = 'PAYEE_DFSP'\n    and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'\n    and `transfer`.`transferId` = :transferId;\n"
+      query: >
+        select
+        	qp1.fspId as endPayerFsp,
+          payerpit.name as payerIdentifierTypeName,
+        	qp1.partyIdentifierValue as payerIdentifierValue,
+          qp1.partyName as payerName,
+        	qp2.fspId as endPayeeFsp,
+          payeepit.name as payeeIdentifierTypeName,
+        	qp2.partyIdentifierValue as payeeIdentifierValue,
+          qp2.partyName as payeeName,
+          q.quoteId as quoteId,
+          q.transactionReferenceId as transactionReferenceId,
+          fqct.conversionId as conversionId,
+          fqct.expirationDate as conversionExpiry,
+          ft.commitRequestId as commitRequestId,
+          transfer.expirationDate as transferExpiry,
+          qr.payeeFspFeeAmount as payeeFspFeeAmount,
+          qr.payeeFspCommissionAmount as payeeFspCommissionAmount,
+          fqrct.sourceAmount as conversionTermsSourceAmount,
+          fqrct.targetAmount as conversionTermsTargetAmount,
+          fxtsc.transferStateId as fxTransferState,
+            `transfer`.*,
+            ft.*,
+            `transfer`.`currencyId` as `currency`,
+            `tp1`.`amount` as `payerAmount`,
+            `da`.`participantId` as `payerParticipantId`,
+            `da`.`name` as `payerFsp`,
+            `tp2`.`amount` as `payeeAmount`,
+            `ca`.`participantId` as `payeeParticipantId`,
+            `ca`.`name` as `payeeFsp`,
+            `fda`.`name` as `fxpName`,
+            `tsc`.`transferStateId` as `transferState`,
+            `tsc`.`reason` as `reason`,
+            `tsc`.`createdDate` as `completedTimestamp`
+        from
+            `transfer`
+        inner join `transferParticipant` as `tp1` on
+            `tp1`.`transferId` = `transfer`.`transferId`
+        inner join `transferParticipantRoleType` as `tprt1` on
+            `tprt1`.`transferParticipantRoleTypeId` = `tp1`.`transferParticipantRoleTypeId`
+        inner join `participant` as `da` on
+            `da`.`participantId` = `tp1`.`participantId`
+        inner join `transferParticipant` as `tp2` on
+            `tp2`.`transferId` = `transfer`.`transferId`
+        inner join `transferParticipantRoleType` as `tprt2` on
+            `tprt2`.`transferParticipantRoleTypeId` = `tp2`.`transferParticipantRoleTypeId`
+        inner join `participant` as `ca` on
+            `ca`.`participantId` = `tp2`.`participantId`
+        inner join (select tsc1.transferId, max(tsc1.transferStateChangeId) as maxTransferStateChangeId from `transferStateChange` as `tsc1` group by tsc1.transferId) as ts on
+            `ts`.`transferId` = `transfer`.`transferId`
+        inner join `transferStateChange` as `tsc` on
+            `tsc`.`transferStateChangeId` = `ts`.`maxTransferStateChangeId`
+        inner join `fxTransfer` as ft on
+            ft.determiningTransferId = transfer.transferId
+        inner join (select fxtsc1.commitRequestId, max(fxtsc1.fxTransferStateChangeId) as maxFxTransferStateChangeId from `fxTransferStateChange` as `fxtsc1` group by fxtsc1.commitRequestId) as fxts on
+            `fxts`.`commitRequestId` = `ft`.`commitRequestId`
+        inner join `transferStateChange` as `fxtsc` on
+            `fxtsc`.`transferStateChangeId` = `fxts`.`maxFxTransferStateChangeId`
+        inner join `fxTransferParticipant` as `ftp1` on
+            `ftp1`.`commitRequestId` = `ft`.`commitRequestId` and `ftp1`.fxParticipantCurrencyTypeId  = 1
+        inner join `transferParticipantRoleType` as `ftprt1` on
+            `ftprt1`.`transferParticipantRoleTypeId` = `ftp1`.`transferParticipantRoleTypeId`
+        inner join `participant` as `fda` on
+            `fda`.`participantId` = `ftp1`.`participantId`
+        inner join fxQuoteConversionTerms fqct on
+        	fqct.conversionId = `ft`.`commitRequestId`
+        inner join fxQuoteResponseConversionTerms fqrct on
+        	fqrct.conversionId = `ft`.`commitRequestId`
+        inner join quote q on
+            q.transactionReferenceId = transfer.transferId
+        inner join quoteParty qp1 on
+            qp1.quoteId = q.quoteId and qp1.partyTypeId = tprt1.transferParticipantRoleTypeId
+        inner join quoteParty qp2 on
+            qp2.quoteId = q.quoteId and qp2.partyTypeId = tprt2.transferParticipantRoleTypeId
+        inner join partyIdentifierType payerpit on
+            payerpit.partyIdentifierTypeId = qp1.partyIdentifierTypeId
+        inner join partyIdentifierType payeepit on
+            payeepit.partyIdentifierTypeId = qp2.partyIdentifierTypeId
+        inner join fxCharge fxc on
+            fxc.conversionId = fqrct.conversionId
+        inner join quoteResponse qr on
+            qr.quoteId = q.quoteId
+        where
+            `tprt1`.`name` = 'PAYER_DFSP'
+            and `tprt2`.`name` = 'PAYEE_DFSP'
+            and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'
+            and `transfer`.`transferId` = :transferId;
     - name: fxCharges
-      query: "select DISTINCT fxc.fxChargeId, fxc.* from fxCharge join fxTransfer as ft on\n  ft.determiningTransferId = :transferId\njoin fxQuoteResponseConversionTerms fqrct on\n\tfqrct.conversionId = ft.commitRequestId\njoin fxCharge as fxc on\n  fxc.conversionId = fqrct.conversionId\nwhere\n  ft.determiningTransferId = :transferId\n"
+      query: >
+        select DISTINCT fxc.fxChargeId, fxc.* from fxCharge
+        join fxTransfer as ft on
+          ft.determiningTransferId = :transferId
+        join fxQuoteResponseConversionTerms fqrct on
+        	fqrct.conversionId = ft.commitRequestId
+        join fxCharge as fxc on
+          fxc.conversionId = fqrct.conversionId
+        where
+          ft.determiningTransferId = :transferId
   template: |
     <!DOCTYPE html>
     <html lang="en">
