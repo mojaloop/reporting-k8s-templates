@@ -67,8 +67,8 @@ spec:
             ft.determiningTransferId = transfer.transferId
         inner join (select fxtsc1.commitRequestId, max(fxtsc1.fxTransferStateChangeId) as maxFxTransferStateChangeId from `fxTransferStateChange` as `fxtsc1` group by fxtsc1.commitRequestId) as fxts on
             `fxts`.`commitRequestId` = `ft`.`commitRequestId`
-        inner join `transferStateChange` as `fxtsc` on
-            `fxtsc`.`transferStateChangeId` = `fxts`.`maxFxTransferStateChangeId`
+        inner join `fxTransferStateChange` as `fxtsc` on
+            `fxtsc`.`fxTransferStateChangeId` = `fxts`.`maxFxTransferStateChangeId`
         inner join `fxTransferParticipant` as `ftp1` on
             `ftp1`.`commitRequestId` = `ft`.`commitRequestId` and `ftp1`.fxParticipantCurrencyTypeId  = 1
         inner join `transferParticipantRoleType` as `ftprt1` on
@@ -109,6 +109,54 @@ spec:
           fxc.conversionId = fqrct.conversionId
         where
           ft.determiningTransferId = :transferId
+    - name: positionChanges
+      query: >
+        select
+            `tsc`.`transferStateChangeId`,
+            `tsc`.`transferStateId`,
+            `tsc`.`createdDate` as `transferStateChangeDate`,
+            `ppc`.value as positionChangeValue,
+            pc.currencyId as positionChangeCurrency,
+            p.name as positionChangeParticipantName,
+            pc.createdDate as positionChangeDate,
+            (select value from participantPositionChange ppc2 where ppc.participantPositionChangeId > ppc2.participantPositionChangeId and ppc.participantCurrencyId = ppc2.participantCurrencyId order by participantPositionChangeId desc limit 1) as previousPositionChangeValue
+        from
+            `transfer`
+        inner join `transferStateChange` as `tsc` on
+            `tsc`.`transferId` = `transfer`.`transferId`
+        inner join participantPositionChange ppc ON
+            `ppc`.transferStateChangeId = `tsc`.transferStateChangeId
+        inner join participantCurrency pc on
+          pc.participantCurrencyId = ppc.participantCurrencyId
+        inner join participant p on
+          p.participantId = pc.participantId 
+        where
+           `transfer`.`transferId` = :transferId;
+    - name: fxPositionChanges
+      query: >
+        select
+            `fxtsc`.`fxTransferStateChangeId`,
+            `fxtsc`.`transferStateId`,
+            `fxtsc`.`createdDate` as `fxTransferStateChangeDate`,
+            `ppc`.value as positionChangeValue,
+            pc.currencyId as positionChangeCurrency,
+            p.name as positionChangeParticipantName,
+            pc.createdDate as positionChangeDate,
+            (select value from participantPositionChange ppc2 where ppc.participantPositionChangeId > ppc2.participantPositionChangeId and ppc.participantCurrencyId = ppc2.participantCurrencyId order by participantPositionChangeId desc limit 1) as previousPositionChangeValue
+        from
+            `transfer`
+        inner join `fxTransfer` as ft on
+            ft.determiningTransferId = transfer.transferId
+        inner join `fxTransferStateChange` as `fxtsc` on
+            `fxtsc`.`commitRequestId` = `ft`.`commitRequestId`
+        inner join participantPositionChange ppc ON
+            `ppc`.fxTransferStateChangeId = `fxtsc`.fxTransferStateChangeId
+        inner join participantCurrency pc on
+          pc.participantCurrencyId = ppc.participantCurrencyId
+        inner join participant p on
+          p.participantId = pc.participantId 
+        where
+           `transfer`.`transferId` = :transferId;
   template: |
     <!DOCTYPE html>
     <html lang="en">
@@ -116,7 +164,7 @@ spec:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>DRPP Transaction Report</title>
+        <title>DRPP Transaction Detail Report</title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -217,6 +265,43 @@ spec:
                 font-size: 1.0em;
             }
 
+            .button-link {
+                display: inline-block;
+                padding: 10px 20px;
+                font-size: 16px;
+                color: #fff;
+                background-color: #007bff;
+                text-decoration: none;
+                border-radius: 5px;
+                transition: background-color 0.3s, transform 0.2s;
+                font-weight: 500;
+                box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+            }
+
+            .button-link:hover {
+                background-color: #0056b3;
+                transform: translateY(-2px);
+                box-shadow: 0 6px 12px rgba(0, 86, 179, 0.3);
+            }
+
+            .button-link:active {
+                transform: translateY(0);
+                box-shadow: 0 4px 8px rgba(0, 86, 179, 0.2);
+            }
+
+            .highlight-link {
+                color: #007bff;
+                text-decoration: none;
+                padding: 3px 5px;
+                border-radius: 3px;
+                transition: background-color 0.2s, color 0.2s;
+            }
+
+            .highlight-link:hover {
+                background-color: #00447c;
+                color: white;
+            }
+
             .footer {
                 margin-top: 20px;
                 text-align: center;
@@ -285,7 +370,7 @@ spec:
                 <p>State: <%= transferState %></p>
             </div>
             <div>
-              <br /><a href="report-transaction?format=html">View all Transactions</a>
+              <br /><a class="highlight-link" href="report-transaction?format=html">View all Transactions</a>
             </div>
             <div class="grid-container">
                 <div class="grid-block">
@@ -296,9 +381,9 @@ spec:
                         <tr>
                         <tr>
                           <td>
-                            At <i>"<%=submittedAt%>"</i>" <b><%=sourceAmount%> <%=sourceCurrency%></b> was transferred from "<%=payerFspName%>" to "<%=payeeFspName%>" who received <b><%=targetAmount%> <%=targetCurrency%></b>.
-                            <br />"<%=payerFspName%>" <%= payerFspName==payerProxyName ? `[was represented by ${payerProxyName} who]` : '' %> was debited by <%=sourceAmount%> <%=sourceCurrency%>.
-                            <br />"<%=payeeFspName%>" <%= payeeFspName==payeeProxyName ? `[was represented by ${payeeProxyName} who]` : '' %> was credited by <%=targetAmount%> <%=targetCurrency%>.
+                            At <i><%=submittedAt%></i> <b><%=sourceAmount%> <%=sourceCurrency%></b> was transferred from <%=payerFspName%> to <%=payeeFspName%> who received <b><%=targetAmount%> <%=targetCurrency%></b>.
+                            <br /><%=payerFspName%> <%= payerFspName==payerProxyName ? `[was represented by ${payerProxyName} who]` : '' %> was debited by <%=sourceAmount%> <%=sourceCurrency%>.
+                            <br /><%=payeeFspName%> <%= payeeFspName==payeeProxyName ? `[was represented by ${payeeProxyName} who]` : '' %> was credited by <%=targetAmount%> <%=targetCurrency%>.
                             <br />Conversion was performed by <%=fxpName%>.
                           </td>
                         </tr>
@@ -313,9 +398,8 @@ spec:
                         <tr>
                         <tr>
                           <td>
-                            <%= payerIdentifierValue %> <%= payerIdentifierTypeName %> at <%= payerFspName %>
-                            <%= payerName %>
-                            Supporting these currencies: <%= sourceCurrency %>
+                            The Payer's identifier <%= payerIdentifierValue %> (<%= payerIdentifierTypeName %>), and their account is held at <%= payerFspName %>
+                            allowing transactions in <%= sourceCurrency %>
                           </td>
                         </tr>
                       </tbody>
@@ -327,9 +411,8 @@ spec:
                         <tr>
                         <tr>
                           <td>
-                            <%= payeeIdentifierValue %> <%= payeeIdentifierTypeName %> at <%= payeeFspName %>
-                            <%= payeeName %>
-                            Supporting these currencies: <%= targetCurrency %>
+                            The Payee's identifier <%= payeeIdentifierValue %> (<%= payeeIdentifierTypeName %>), and their account is held at <%= payeeFspName %>
+                            allowing transactions in <%= targetCurrency %>
                           </td>
                         </tr>
                       </tbody>
@@ -383,32 +466,32 @@ spec:
                         <tr>
                           <td>Send Amount</td>
                           <td>
-                            <%= conversionTermsSourceAmount %> <%= sourceCurrency %>
+                            <%= parseFloat(conversionTermsSourceAmount).toFixed(2) %> <%= sourceCurrency %>
                           </td>
                         </tr>
                         <tr>
                           <td>Receive Amount</td>
                           <td>
-                            <%= conversionTermsTargetAmount %> <%= targetCurrency %>
+                            <%= parseFloat(conversionTermsTargetAmount).toFixed(2) %> <%= targetCurrency %>
                           </td>
                         </tr>
                         <tr>
                           <td>Conversion Charge Amount</td>
                           <td>
-                            <%= sourceAmountConversionCharges %> <%= sourceCurrency %>
+                            <%= parseFloat(sourceAmountConversionCharges).toFixed(2) %> <%= sourceCurrency %>
                           </td>
                         </tr>
                         <tr>
                           <td>Conversion Charge Amount</td>
                           <td>
-                            <%= targetAmountConversionCharges %> <%= targetCurrency %>
+                            <%= parseFloat(targetAmountConversionCharges).toFixed(2) %> <%= targetCurrency %>
                           </td>
                         </tr>
                         <tr>
                           <td>Exchange Rate</td>
                           <td>
-                            <%= exchangeRate %>
-                            (<%= sourceAmount %> - <%= sourceAmountConversionCharges %>/<%= targetAmount %> - <%= targetAmountConversionCharges %>)
+                            <%= parseFloat(exchangeRate).toFixed(4) %>
+                            (<%= parseFloat(sourceAmount).toFixed(2) - parseFloat(sourceAmountConversionCharges).toFixed(2) %>/<%= parseFloat(targetAmount).toFixed(2) - parseFloat(targetAmountConversionCharges).toFixed(2) %>)
                           </td>
                         </tr>
                         <tr>
@@ -426,49 +509,84 @@ spec:
                       </tbody>
                     </table>
                 </div>
+                <div class="grid-block">
+                  <table cellpadding='0' cellspacing='0'>
+                      <tbody>
+                      <tr>
+                        <th colspan='100%'>Technical Details</th>
+                      </tr>
+                      <tr>
+                        <td>Transaction Id</td>
+                        <td>
+                          <%= transactionReferenceId %>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Transfer Id</td>
+                        <td>
+                          <%= transferId %>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Quote Id</td>
+                        <td>
+                          <%= quoteId %>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Conversion Id</td>
+                        <td>
+                          <%= commitRequestId %>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Conversion Quote Id</td>
+                        <td>
+                          <%= conversionId %>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>Conversion State</td>
+                        <td>
+                          <%= fxTransferState %>
+                        </td>
+                      </tr>
+                  </table>
+                </div>
+                <div class="grid-block">
+                  <table cellpadding='0' cellspacing='0'>
+                      <tbody>
+                      <tr>
+                        <th colspan='100%'>Position Changes</th>
+                      </tr>
+                      <tr>
+                        <th>Participant</th>
+                        <th>Currency</th>
+                        <th>Previous Position</th>
+                        <th>New Position</th>
+                        <th>Change</th>
+                      </tr>
+                      <% for(let pc of positionChanges) { %>
+                      <tr>
+                        <td><%= pc.positionChangeParticipantName %></td>
+                        <td><%= pc.positionChangeCurrency %></td>
+                        <td><%= pc.previousPositionChangeValue %></td>
+                        <td><%= pc.positionChangeValue %></td>
+                        <td><%= pc.positionChangeValue-pc.previousPositionChangeValue %></td>
+                      </tr>
+                      <% } %>
+                      <% for(let fpc of fxPositionChanges) { %>
+                      <tr>
+                        <td><%= fpc.positionChangeParticipantName %></td>
+                        <td><%= fpc.positionChangeCurrency %></td>
+                        <td><%= fpc.previousPositionChangeValue %></td>
+                        <td><%= fpc.positionChangeValue %></td>
+                        <td><%= fpc.positionChangeValue-fpc.previousPositionChangeValue %></td>
+                      </tr>
+                      <% } %>
+                  </table>
+                </div>
             </div>
-            <table cellpadding='0' cellspacing='0'>
-                <tbody>
-                <tr>
-                  <th colspan='100%'>Technical Details</th>
-                </tr>
-                <tr>
-                  <td>Transaction Id</td>
-                  <td>
-                    <%= transactionReferenceId %>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Transfer Id</td>
-                  <td>
-                    <%= transferId %>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Quote Id</td>
-                  <td>
-                    <%= quoteId %>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Conversion Id</td>
-                  <td>
-                    <%= commitRequestId %>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Conversion Quote Id</td>
-                  <td>
-                    <%= conversionId %>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Conversion State</td>
-                  <td>
-                    <%= fxTransferState %>
-                  </td>
-                </tr>
-            </table>
 
             <div class="footer">
                 <p>Generated on: <%= (new Date()).toUTCString() %></p>

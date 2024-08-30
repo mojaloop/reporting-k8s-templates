@@ -67,7 +67,7 @@ spec:
             and `tprt2`.`name` = 'PAYEE_DFSP'
             and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'
         order by
-            `tsc`.`transferStateChangeId` desc;
+            `completedTimestamp` desc;
 
   template: |
     <!DOCTYPE html>
@@ -158,6 +158,19 @@ spec:
                 font-size: 0.7em;
             }
 
+            .highlight-link {
+                color: #007bff;
+                text-decoration: none;
+                padding: 3px 5px;
+                border-radius: 3px;
+                transition: background-color 0.2s, color 0.2s;
+            }
+
+            .highlight-link:hover {
+                background-color: #00447c;
+                color: white;
+            }
+
             .footer {
                 margin-top: 20px;
                 text-align: center;
@@ -202,7 +215,7 @@ spec:
                 <tbody>
                 <% for(let tr of transfers) { %>
                     <tr>
-                        <td class='smallFont'><a href='report-transaction-detail?transferId=<%= tr.transferId %>' target='_blank'><%= tr.transferId %></a></td>
+                        <td class='smallFont'><a class="highlight-link" href='report-transaction-detail?transferId=<%= tr.transferId %>'><%= tr.transferId %></a></td>
                         <td class='smallFont'><%= tr.createdDate.toUTCString() %></td>
                         <td><%= tr.endPayerFsp + (tr.payerFsp != tr.endPayerFsp ? ` (${tr.payerFsp})` : '') %></td>
                         <td><%= tr.endPayeeFsp + (tr.payeeFsp != tr.endPayeeFsp ? ` (${tr.payeeFsp})` : '') %></td>
