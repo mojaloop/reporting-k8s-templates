@@ -129,7 +129,7 @@ spec:
         inner join participantCurrency pc on
           pc.participantCurrencyId = ppc.participantCurrencyId
         inner join participant p on
-          p.participantId = pc.participantId 
+          p.participantId = pc.participantId
         where
            `transfer`.`transferId` = :transferId;
     - name: fxPositionChanges
@@ -154,9 +154,37 @@ spec:
         inner join participantCurrency pc on
           pc.participantCurrencyId = ppc.participantCurrencyId
         inner join participant p on
-          p.participantId = pc.participantId 
+          p.participantId = pc.participantId
         where
            `transfer`.`transferId` = :transferId;
+    - name: transferSettlementBatch
+      query: >
+        select
+          ssw.settlementId as settlementBatchId
+        from
+          transferFulfilment
+        inner join settlementWindow as sw on
+          sw.settlementWindowId = transferFulfilment.settlementWindowId
+        inner join settlementSettlementWindow as ssw on
+          ssw.settlementWindowId = sw.settlementWindowId
+        where
+          transferFulfilment.transferId = :transferId
+          and transferFulfilment.settlementWindowId is not null
+    - name: conversionSettlementBatch
+      query: >
+        select
+          ssw.settlementId as settlementBatchId
+        from
+          fxTransferFulfilment
+        inner join settlementWindow as sw on
+          sw.settlementWindowId = fxTransferFulfilment.settlementWindowId
+        inner join settlementSettlementWindow as ssw on
+          ssw.settlementWindowId = sw.settlementWindowId
+        inner join `fxTransfer` as ft on
+            ft.commitRequestId = fxTransferFulfilment.commitRequestId
+        where
+          ft.determiningTransferId = :transferId
+          and fxTransferFulfilment.settlementWindowId is not null
   template: |
     <!DOCTYPE html>
     <html lang="en">
@@ -355,13 +383,14 @@ spec:
 
       const exchangeRate = (sourceAmount - sourceAmountConversionCharges) / (targetAmount - targetAmountConversionCharges);
 
-      const conversionSettlementBatchId = null;
+      const conversionSettlementBatchId = conversionSettlementBatch[0]?.settlementBatchId
+      const transferSettlementBatchId = transferSettlementBatch[0]?.settlementBatchId;
     %>
     <body>
         <div class="container">
             <div class="header">
                 <h1>DRPP Transaction Detail Report</h1>
-                <img src="https://comesabusinesscouncil.org/wp-content/uploads/2022/10/cropped-cropped-cropped-cbc_logo-1.jpg" alt="Logo">
+                <img src="" alt="Logo">
             </div>
 
             <div class="summary">
@@ -452,6 +481,12 @@ spec:
                           <td>Transfer Expiry</td>
                           <td>
                             <%= transferExpiry %>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Transfer Settlement Batch</td>
+                          <td>
+                            <%= transferSettlementBatchId || 'Not yet settled' %>
                           </td>
                         </tr>
                       </tbody>
