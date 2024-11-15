@@ -40,7 +40,7 @@ spec:
                 participantPositionChange AS ppc 
                 ON ppc.transferStateChangeId = tsc.transferStateChangeId
             WHERE 
-                tf.settlementWindowId = 1
+                tf.settlementWindowId = :settlementId
 
             UNION ALL
 
@@ -62,7 +62,7 @@ spec:
                 participantPositionChange AS ppc 
                 ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
             WHERE 
-                fxtf.settlementWindowId = 1
+                fxtf.settlementWindowId = :settlementId
         ) AS unioned
         INNER JOIN 
             participantCurrency AS pc 
@@ -98,7 +98,7 @@ spec:
                 participantPositionChange AS ppc 
                 ON ppc.transferStateChangeId = tsc.transferStateChangeId
             WHERE 
-                tf.settlementWindowId = 1
+                tf.settlementWindowId = :settlementId
 
             UNION ALL
 
@@ -120,7 +120,7 @@ spec:
                 participantPositionChange AS ppc 
                 ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
             WHERE 
-                fxtf.settlementWindowId = 1
+                fxtf.settlementWindowId = :settlementId
         ) AS unioned
         INNER JOIN 
             participantCurrency AS pc 
