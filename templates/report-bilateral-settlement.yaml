@@ -405,41 +405,8 @@ spec:
             return output;
         }
 
-        const sampleInput = [
-            {
-                "debtorParticipantCurrencyId": 47,
-                "creditorParticipantCurrencyId": 15,
-                "debtorTotalAmount": "24500.00"
-            },
-            {
-                "debtorParticipantCurrencyId": 47,
-                "creditorParticipantCurrencyId": 55,
-                "debtorTotalAmount": "4900.00"
-            },
-            {
-                "debtorParticipantCurrencyId": 107,
-                "creditorParticipantCurrencyId": 87,
-                "debtorTotalAmount": "5243.00"
-            },
-            {
-                "debtorParticipantCurrencyId": 89,
-                "creditorParticipantCurrencyId": 117,
-                "debtorTotalAmount": "102.00"
-            },
-            {
-                "debtorParticipantCurrencyId": 87,
-                "creditorParticipantCurrencyId": 107,
-                "debtorTotalAmount": "5000"
-            },
-            {
-                "debtorParticipantCurrencyId": 117,
-                "creditorParticipantCurrencyId": 89,
-                "debtorTotalAmount": "300"
-            }
-        ];
 
       const calculatedSettlementRows = calculateNetSettlement(settlementParticipantCurrencyIdsResult)
-      // const calculatedSettlementRows = calculateNetSettlement(sampleInput)
 
       const calculatedSettlementRowsWithDetails = calculatedSettlementRows.map((calculatedSettlementRow) => {
         const debtorParticipantCurrencyId = calculatedSettlementRow.netDebtor;
