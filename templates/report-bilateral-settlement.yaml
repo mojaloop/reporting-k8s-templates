@@ -10,7 +10,29 @@ spec:
     path: /report-bilateral-settlement
   permission: transferApi
   queries:
-    - name: settlementParticipantCurrencyIds
+    - name: settlementInfoResult
+      query: >
+        SELECT
+            s.settlementId,
+            s.createdDate,
+            ssc.settlementStateId as currenctState,
+            ssc.createdDate as lastStateUpdate,
+            sSW.createdDate as windowCreatedDate,
+            sSW.settlementWindowId,
+            MIN(sWSCOpen.createdDate) as windowOpenDate,
+            MAX(sWSCClosed.createdDate) as windowClosedDate
+        FROM settlement s
+        INNER JOIN settlementSettlementWindow sSW
+                on s.settlementId = sSW.settlementId 
+        INNER JOIN settlementWindowStateChange sWSCOpen
+                on sSW.settlementWindowId = sWSCOpen.settlementWindowId AND sWSCOpen.settlementWindowStateId = 'OPEN'
+        INNER JOIN settlementWindowStateChange sWSCClosed
+                on sSW.settlementWindowId = sWSCClosed.settlementWindowId AND sWSCClosed.settlementWindowStateId = 'CLOSED'
+        INNER JOIN settlementStateChange ssc
+            on s.currentStateChangeId = ssc.settlementStateChangeId 
+        WHERE s.settlementId = :settlementId
+        GROUP BY s.settlementId, sSW.settlementWindowId;
+    - name: settlementParticipantCurrencyIdsResult
       query: >
         SELECT
             result1.participantCurrencyId as debtorParticipantCurrencyId,
@@ -39,8 +61,12 @@ spec:
             INNER JOIN 
                 participantPositionChange AS ppc 
                 ON ppc.transferStateChangeId = tsc.transferStateChangeId
-            WHERE 
-                tf.settlementWindowId = :settlementId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON tf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
 
             UNION ALL
 
@@ -61,8 +87,12 @@ spec:
             INNER JOIN 
                 participantPositionChange AS ppc 
                 ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-            WHERE 
-                fxtf.settlementWindowId = :settlementId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON fxtf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
         ) AS unioned
         INNER JOIN 
             participantCurrency AS pc 
@@ -97,8 +127,12 @@ spec:
             INNER JOIN 
                 participantPositionChange AS ppc 
                 ON ppc.transferStateChangeId = tsc.transferStateChangeId
-            WHERE 
-                tf.settlementWindowId = :settlementId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON tf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
 
             UNION ALL
 
@@ -119,8 +153,12 @@ spec:
             INNER JOIN 
                 participantPositionChange AS ppc 
                 ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-            WHERE 
-                fxtf.settlementWindowId = :settlementId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON fxtf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
         ) AS unioned
         INNER JOIN 
             participantCurrency AS pc 
@@ -400,7 +438,7 @@ spec:
             }
         ];
 
-      const calculatedSettlementRows = calculateNetSettlement(settlementParticipantCurrencyIds)
+      const calculatedSettlementRows = calculateNetSettlement(settlementParticipantCurrencyIdsResult)
       // const calculatedSettlementRows = calculateNetSettlement(sampleInput)
 
       const calculatedSettlementRowsWithDetails = calculatedSettlementRows.map((calculatedSettlementRow) => {
@@ -414,6 +452,8 @@ spec:
           payeeParticipantCurrencyDetails
         };
       });
+
+      const settlementInfo = settlementInfoResult[0];
       
     %>
     <body>
@@ -425,12 +465,12 @@ spec:
 
             <div class="summary">
                 <p>For Regional Hub</p>
-                <p>Settlement ID: TBD</p>
-                <p>State: TBD</p>
-                <p>Earliest Window Start: TBD (First Window open time)</p>
-                <p>Latest Window Finish: TBD (Last Window close time)</p>
-                <p>Created Date: TBD</p>
-                <p>Last State Update: TBD</p>
+                <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
+                <p>State: <%= settlementInfo?.currenctState %></p>
+                <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>
+                <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate.toISOString() %></p>
+                <p>Created Date: <%= settlementInfo?.createdDate.toISOString() %></p>
+                <p>Last State Update: <%= settlementInfo?.lastStateUpdate.toISOString() %></p>
             </div>
 
                   <table cellpadding='0' cellspacing='0'>
