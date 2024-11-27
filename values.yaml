@@ -4,10 +4,10 @@
 
 templates:
   bilateralSettlement: true
-  multilateralSettlement: true
   dfspSettlement: true
   dfspSettlementDetail: true
   dfspSettlementStatement: true
+  multilateralSettlement: true
   reconciliationAmount: true
   settlement: true
   settlementAudit: true
