@@ -1,10 +1,10 @@
-{{- if .Values.templates.multilateralSettlement -}}
+# {{- if .Values.templates.multilateralSettlement -}}
 
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: report-multilateral-settlement
-  {{ include "common.annotations" . | nindent 2 }}
+#   {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     params:
@@ -223,6 +223,19 @@ spec:
                 color: #fff;
                 padding: 10px;
                 font-size: 1.0em;
+                margin-bottom: 10px;
+            }
+
+            .thGroupBy {
+                background-color: #cfdbeb;
+                padding: 10px;
+                font-size: 1.0em;
+                font-weight: bold;
+            }
+
+            .thSeparator {
+                background-color: #ffffff;
+                padding: 2px;
             }
 
             .button-link {
@@ -281,10 +294,19 @@ spec:
         const participantCurrencyDetails = allParticipantCurrencyIds.find((participantCurrencyId) => participantCurrencyId.participantCurrencyId === settlementRow.participantCurrencyId);
         return {
           ...settlementRow,
-          netAmountDisplay: settlementRow.netAmount > 0 ? `(${settlementRow.netAmount})` : settlementRow.netAmount,
+          netAmountDisplay: settlementRow.netAmount <= 0 ? Math.abs(settlementRow.netAmount) : `(${settlementRow.netAmount})`,
           participantCurrencyDetails
         };
       });
+
+      const groupedByCurrencyId = outputSettlementRowsWithDetails.reduce((acc, record) => {
+        const currencyId = record.participantCurrencyDetails.currencyId;
+        if (!acc[currencyId]) {
+            acc[currencyId] = [];
+        }
+        acc[currencyId].push(record);
+        return acc;
+      }, {});
 
       const settlementInfo = settlementInfoResult[0];
 
@@ -313,11 +335,19 @@ spec:
                         <th>Currency</th>
                         <th>Net Settlement Amount</th>
                       </tr>
-                      <% for(let sd of outputSettlementRowsWithDetails) { %>
+                      <% for (let currencyId in groupedByCurrencyId) { %>
+                      <tr>
+                        <td class='thGroupBy' colspan='100%'><%= currencyId %></td>
+                      </tr>
+                      <% for(let sd of groupedByCurrencyId[currencyId]) { %>
                       <tr>
                         <td><%= sd.participantCurrencyDetails.name %></td>
                         <td><%= sd.participantCurrencyDetails.currencyId %></td>
                         <td><%= sd.netAmountDisplay %></td>
+                      </tr>
+                      <% } %>
+                      <tr>
+                        <td class='thSeparator' colspan='100%'></td>
                       </tr>
                       <% } %>
                   </table>
@@ -327,6 +357,8 @@ spec:
             </div>-->
 
             <div class="footer">
+                <p><i>NOTE: In the report, amounts enclosed in parentheses represent negative balances, indicating a payable obligation of the participant to the switch.</i></p>
+                <br />
                 <p>Generated on: <%= (new Date()).toUTCString() %></p>
             </div>
         </div>
@@ -334,4 +366,4 @@ spec:
     </body>
     </html>
 
-{{- end }}
+# {{- end }}
