@@ -281,6 +281,7 @@ spec:
         const participantCurrencyDetails = allParticipantCurrencyIds.find((participantCurrencyId) => participantCurrencyId.participantCurrencyId === settlementRow.participantCurrencyId);
         return {
           ...settlementRow,
+          netAmountDisplay: settlementRow.netAmount > 0 ? `(${settlementRow.netAmount})` : settlementRow.netAmount,
           participantCurrencyDetails
         };
       });
@@ -316,7 +317,7 @@ spec:
                       <tr>
                         <td><%= sd.participantCurrencyDetails.name %></td>
                         <td><%= sd.participantCurrencyDetails.currencyId %></td>
-                        <td><%= sd.netAmount %></td>
+                        <td><%= sd.netAmountDisplay %></td>
                       </tr>
                       <% } %>
                   </table>
