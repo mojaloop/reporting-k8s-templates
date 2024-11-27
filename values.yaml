@@ -7,6 +7,7 @@ templates:
   dfspSettlement: true
   dfspSettlementDetail: true
   dfspSettlementStatement: true
+  multilateralSettlement: true
   reconciliationAmount: true
   settlement: true
   settlementAudit: true
