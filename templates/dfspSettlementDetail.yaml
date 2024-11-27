@@ -3,6 +3,7 @@ apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: {{ printf "%s-%s" .Release.Name "dfsp-settlement-detail" | trimPrefix "-" }}
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   permission: report-dfsp-settlement-detail
   endpoint:
@@ -99,7 +100,7 @@ spec:
             }
             tr.noborder td {
                 border: none;
-            }            
+            }
         </style>
         <title>FSP Settlement Report</title>
     </head>

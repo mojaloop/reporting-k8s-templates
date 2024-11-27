@@ -3,12 +3,18 @@
 # Declare variables to be passed into your templates.
 
 templates:
-  settlement: true
+  bilateralSettlement: true
   dfspSettlement: true
   dfspSettlementDetail: true
-  reconciliationAmount: true
-  settlementWindow: true
-  settlementInitiation: true
-  transactionReconciliation: true
   dfspSettlementStatement: true
+  reconciliationAmount: true
+  settlement: true
   settlementAudit: true
+  settlementInitiation: true
+  settlementWindow: true
+  transaction: true
+  transactionDetail: true
+  transactionReconciliation: true
+
+reportsSyncHook: Sync
+reportsSyncWave: "2"

@@ -60,3 +60,9 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{- define "common.annotations" -}}
+annotations:
+  argocd.argoproj.io/hook: "{{ .Values.reportsSyncHook | default "Sync" }}"
+  argocd.argoproj.io/sync-wave: "{{ .Values.reportsSyncWave | default "0" }}"
+{{- end -}}
