@@ -66,10 +66,10 @@ spec:
                 ON ppc.transferStateChangeId = tsc.transferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
-                ON ppc.participantCurrencyId = spc.participantCurrencyId
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
             INNER JOIN
                 settlementSettlementWindow ssw
-                ON tf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
+                ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
 
             UNION ALL
 
@@ -92,10 +92,10 @@ spec:
                 ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
-                ON ppc.participantCurrencyId = spc.participantCurrencyId
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
             INNER JOIN
                 settlementSettlementWindow ssw
-                ON fxtf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
+                ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
         ) AS unioned
         INNER JOIN
             participantCurrency AS pc
@@ -132,10 +132,10 @@ spec:
                 ON ppc.transferStateChangeId = tsc.transferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
-                ON ppc.participantCurrencyId = spc.participantCurrencyId
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
             INNER JOIN
                 settlementSettlementWindow ssw
-                ON tf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
+                ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
 
             UNION ALL
 
@@ -158,10 +158,10 @@ spec:
                 ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
-                ON ppc.participantCurrencyId = spc.participantCurrencyId
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
             INNER JOIN
                 settlementSettlementWindow ssw
-                ON fxtf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
+                ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
         ) AS unioned
         INNER JOIN
             participantCurrency AS pc
