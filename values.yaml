@@ -4,6 +4,7 @@
 
 templates:
   bilateralSettlement: true
+  multilateralSettlement: true
   dfspSettlement: true
   dfspSettlementDetail: true
   dfspSettlementStatement: true
