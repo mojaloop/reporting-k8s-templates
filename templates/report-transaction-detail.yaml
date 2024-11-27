@@ -1,7 +1,10 @@
+{{- if .Values.templates.transactionDetail -}}
+
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: report-transaction-detail
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     params:

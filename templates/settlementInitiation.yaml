@@ -4,6 +4,7 @@ apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: {{ printf "%s-%s" .Release.Name "settlement-initiation" | trimPrefix "-" }}
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   permission: report-settlement-initiation
   endpoint:
@@ -94,7 +95,7 @@ spec:
     %>
 
     <table data-sheet-name="SettlementBankReport">
-        <tr> 
+        <tr>
             <td><span>Settlement ID</span></td>
             <td style="text-align: right"><%= settlementId[0].settlementId %></td>
         </tr>
@@ -132,5 +133,5 @@ spec:
     </table>
     </body>
     </html>
-    
+
     {{- end }}

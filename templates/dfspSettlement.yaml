@@ -4,6 +4,7 @@ apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: {{ printf "%s-%s" .Release.Name "dfsp-settlement" | trimPrefix "-" }}
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   permission: report-dfsp-settlement
   endpoint:
@@ -225,5 +226,5 @@ spec:
     </table>
     </body>
     </html>
-    
-{{- end }}    
+
+{{- end }}

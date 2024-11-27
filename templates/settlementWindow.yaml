@@ -4,6 +4,7 @@ apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: {{ printf "%s-%s" .Release.Name "settlement-window" | trimPrefix "-" }}
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   permission: report-settlement-window
   endpoint:

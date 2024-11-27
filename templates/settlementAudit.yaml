@@ -4,6 +4,7 @@ apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: {{ printf "%s-%s" .Release.Name "settlement-audit  " | trimPrefix "-" }}
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   permission: report-settlement-audit
   endpoint:
@@ -16,10 +17,10 @@ spec:
   queries:
     - name: dfspInfo
       query: |
-        SELECT 
-            p.participantId, 
-            p.name, 
-            :startDate AS startDate, 
+        SELECT
+            p.participantId,
+            p.name,
+            :startDate AS startDate,
             :endDate AS endDate,
             pc.currencyId,
             pc.participantCurrencyId,
@@ -35,7 +36,7 @@ spec:
             p.name AS name,
             pc.currencyId AS currencyId,
             pc.participantCurrencyId AS participantCurrencyId,
-            tp.transferId AS transferId, 
+            tp.transferId AS transferId,
             tp.createdDate AS createdDate,
             COALESCE(tscIn.transferStateChangeId, tscOut.transferStateChangeId) as transferStateChangeId,
             (CASE WHEN COALESCE(tsIn.enumeration, tsOut.enumeration) != 'ABORTED' THEN 'SUCCESS' ELSE tsOut.enumeration END) AS status,
@@ -47,17 +48,17 @@ spec:
             ppc.value AS balance,
             c.scale AS  currencyScale,
             lat.name AS accountType
-        FROM participant p 
-        INNER JOIN participantCurrency pc ON p.participantId = pc.participantId 
+        FROM participant p
+        INNER JOIN participantCurrency pc ON p.participantId = pc.participantId
         INNER JOIN ledgerAccountType lat ON lat.ledgerAccountTypeId = pc.ledgerAccountTypeId
         INNER JOIN transferParticipant tp ON tp.participantCurrencyId = pc.participantCurrencyId
         INNER JOIN transferParticipantRoleType tpr ON tpr.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
         LEFT JOIN transferStateChange tscOut ON tp.transferId = tscOut.transferId AND tscOut.transferStateChangeId = (SELECT MAX(transferStateChangeId) FROM transferStateChange tscOut1 WHERE tscOut1.transferId = tp.transferId
         AND tscOut1.transferStateId in ('RESERVED', 'ABORTED_REJECTED'))
-        LEFT JOIN transferState tsOut ON tscOut.transferStateId = tsOut.transferStateId       
+        LEFT JOIN transferState tsOut ON tscOut.transferStateId = tsOut.transferStateId
         LEFT JOIN transferStateChange tscIn ON tp.transferId = tscIn.transferId AND tscIn.transferStateChangeId = (SELECT MAX(transferStateChangeId) FROM transferStateChange tscIn1 WHERE tscIn1.transferId = tp.transferId
         AND tscIn1.transferStateId in ('COMMITTED', 'ABORTED_REJECTED'))
-        LEFT JOIN transferState tsIn ON tscIn.transferStateId = tsIn.transferStateId   
+        LEFT JOIN transferState tsIn ON tscIn.transferStateId = tsIn.transferStateId
         INNER JOIN participantPosition pp ON pp.participantCurrencyId = pc.participantCurrencyId
         INNER JOIN participantPositionChange ppc ON ppc.participantPositionId = pp.participantPositionId
         INNER JOIN currency c ON c.currencyId = pc.currencyId
@@ -123,7 +124,7 @@ spec:
 
     %>
 
-    
+
     <% dfspInfo.forEach(element => { // Loop Through all the currency accounts
         const reportData = report.filter( record => record.participantId === element.participantId && record.currencyId === element.currencyId && record.participantCurrencyId === element.participantCurrencyId);
     %>
@@ -185,5 +186,5 @@ spec:
     </body>
 
     </html>
-    
+
 {{- end }}

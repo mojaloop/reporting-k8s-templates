@@ -1,7 +1,10 @@
+{{- if .Values.templates.bilateralSettlement -}}
+
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: report-bilateral-settlement
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     params:
@@ -23,13 +26,13 @@ spec:
             MAX(sWSCClosed.createdDate) as windowClosedDate
         FROM settlement s
         INNER JOIN settlementSettlementWindow sSW
-                on s.settlementId = sSW.settlementId 
+                on s.settlementId = sSW.settlementId
         INNER JOIN settlementWindowStateChange sWSCOpen
                 on sSW.settlementWindowId = sWSCOpen.settlementWindowId AND sWSCOpen.settlementWindowStateId = 'OPEN'
         INNER JOIN settlementWindowStateChange sWSCClosed
                 on sSW.settlementWindowId = sWSCClosed.settlementWindowId AND sWSCClosed.settlementWindowStateId = 'CLOSED'
         INNER JOIN settlementStateChange ssc
-            on s.currentStateChangeId = ssc.settlementStateChangeId 
+            on s.currentStateChangeId = ssc.settlementStateChangeId
         WHERE s.settlementId = :settlementId
         GROUP BY s.settlementId, sSW.settlementWindowId;
     - name: settlementParticipantCurrencyIdsResult
@@ -41,25 +44,25 @@ spec:
             SUM(result2.amount) as creditorTotalAmount
         FROM
 
-        (SELECT 
+        (SELECT
             pc.participantCurrencyId,
             unioned.transferId,
             unioned.uniqueLegId,
             SUM(unioned.change) as amount
         FROM (
-            SELECT 
-                ppc.participantCurrencyId, 
-                ppc.change, 
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
                 tf.settlementWindowId,
                 tf.transferId AS transferId,
                 tf.transferId AS uniqueLegId
-            FROM 
+            FROM
                 transferFulfilment AS tf
-            INNER JOIN 
-                transferStateChange AS tsc 
+            INNER JOIN
+                transferStateChange AS tsc
                 ON tsc.transferId = tf.transferId
-            INNER JOIN 
-                participantPositionChange AS ppc 
+            INNER JOIN
+                participantPositionChange AS ppc
                 ON ppc.transferStateChangeId = tsc.transferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
@@ -70,22 +73,22 @@ spec:
 
             UNION ALL
 
-            SELECT 
-                ppc.participantCurrencyId, 
-                ppc.change, 
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
                 fxtf.settlementWindowId,
                 fxt1.determiningTransferId AS transferId,
                 fxt1.commitRequestId AS uniqueLegId
-            FROM 
+            FROM
                 fxTransferFulfilment AS fxtf
-            INNER JOIN 
+            INNER JOIN
                 fxTransfer AS fxt1
                 ON fxt1.commitRequestId = fxtf.commitRequestId
-            INNER JOIN 
-                fxTransferStateChange AS fxtsc 
+            INNER JOIN
+                fxTransferStateChange AS fxtsc
                 ON fxtsc.commitRequestId = fxtf.commitRequestId
-            INNER JOIN 
-                participantPositionChange AS ppc 
+            INNER JOIN
+                participantPositionChange AS ppc
                 ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
@@ -94,8 +97,8 @@ spec:
                 settlementSettlementWindow ssw
                 ON fxtf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
         ) AS unioned
-        INNER JOIN 
-            participantCurrency AS pc 
+        INNER JOIN
+            participantCurrency AS pc
             ON pc.participantCurrencyId = unioned.participantCurrencyId
         WHERE unioned.change > 0
         GROUP BY
@@ -105,27 +108,27 @@ spec:
         ORDER BY unioned.transferId
         ) as result1
 
-        INNER JOIN 
+        INNER JOIN
 
-        (SELECT 
+        (SELECT
             pc.participantCurrencyId,
             unioned.transferId,
             unioned.uniqueLegId,
             SUM(unioned.change) as amount
         FROM (
-            SELECT 
-                ppc.participantCurrencyId, 
-                ppc.change, 
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
                 tf.settlementWindowId,
                 tf.transferId AS transferId,
                 tf.transferId AS uniqueLegId
-            FROM 
+            FROM
                 transferFulfilment AS tf
-            INNER JOIN 
-                transferStateChange AS tsc 
+            INNER JOIN
+                transferStateChange AS tsc
                 ON tsc.transferId = tf.transferId
-            INNER JOIN 
-                participantPositionChange AS ppc 
+            INNER JOIN
+                participantPositionChange AS ppc
                 ON ppc.transferStateChangeId = tsc.transferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
@@ -136,22 +139,22 @@ spec:
 
             UNION ALL
 
-            SELECT 
-                ppc.participantCurrencyId, 
-                ppc.change, 
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
                 fxtf.settlementWindowId,
                 fxt1.determiningTransferId AS transferId,
                 fxt1.commitRequestId AS uniqueLegId
-            FROM 
+            FROM
                 fxTransferFulfilment AS fxtf
-            INNER JOIN 
+            INNER JOIN
                 fxTransfer AS fxt1
                 ON fxt1.commitRequestId = fxtf.commitRequestId
-            INNER JOIN 
-                fxTransferStateChange AS fxtsc 
+            INNER JOIN
+                fxTransferStateChange AS fxtsc
                 ON fxtsc.commitRequestId = fxtf.commitRequestId
-            INNER JOIN 
-                participantPositionChange AS ppc 
+            INNER JOIN
+                participantPositionChange AS ppc
                 ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
@@ -160,8 +163,8 @@ spec:
                 settlementSettlementWindow ssw
                 ON fxtf.settlementWindowId = ssw.settlementId AND ssw.settlementId = :settlementId
         ) AS unioned
-        INNER JOIN 
-            participantCurrency AS pc 
+        INNER JOIN
+            participantCurrency AS pc
             ON pc.participantCurrencyId = unioned.participantCurrencyId
         WHERE unioned.change < 0
         GROUP BY
@@ -184,8 +187,8 @@ spec:
           p.description,
           p.isProxy
         FROM participantCurrency AS pc
-        INNER JOIN 
-            participant AS p 
+        INNER JOIN
+            participant AS p
             ON pc.participantId = p.participantId
         ORDER BY pc.participantCurrencyId;
   template: |
@@ -421,7 +424,7 @@ spec:
       });
 
       const settlementInfo = settlementInfoResult[0];
-      
+
     %>
     <body>
         <div class="container">
