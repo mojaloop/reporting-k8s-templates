@@ -1,10 +1,10 @@
-# {{- if .Values.templates.multilateralSettlement -}}
+{{- if .Values.templates.multilateralSettlement -}}
 
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: report-multilateral-settlement
-#   {{ include "common.annotations" . | nindent 2 }}
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     params:
@@ -366,4 +366,4 @@ spec:
     </body>
     </html>
 
-# {{- end }}
+{{- end }}
