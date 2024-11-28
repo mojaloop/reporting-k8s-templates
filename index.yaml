@@ -2,6 +2,15 @@ apiVersion: v1
 entries:
   reporting-k8s-templates:
   - apiVersion: v2
+    created: "2024-11-28T09:53:10.179602308Z"
+    description: Mojaloop Reporting Templates
+    digest: d9fb5220cac6f8676f1e655f0a38a7318ca4d6711bda375eeb3fcf49f8b426cf
+    name: reporting-k8s-templates
+    type: application
+    urls:
+    - https://github.com/mojaloop/reporting-k8s-templates/releases/download/v1.1.12/reporting-k8s-templates-1.1.12.tgz
+    version: 1.1.12
+  - apiVersion: v2
     created: "2024-11-27T17:33:32.126980949Z"
     description: Mojaloop Reporting Templates
     digest: c6aa2e341d819f7a0d2367ad7ad18ff0577efc4abd65b11b8bdfbce77a05fe02
@@ -262,4 +271,4 @@ entries:
     urls:
     - https://github.com/mojaloop/reporting-k8s-templates/releases/download/v1.0.9/reporting-k8s-templates-1.0.9.tgz
     version: 1.0.9
-generated: "2024-11-27T17:33:32.127187928Z"
+generated: "2024-11-28T09:53:10.179854476Z"
