@@ -42,25 +42,25 @@ spec:
             SUM(result1.amount) as netAmount
         FROM
 
-        (SELECT 
+        (SELECT
             pc.participantCurrencyId,
             unioned.transferId,
             unioned.uniqueLegId,
             SUM(unioned.change) as amount
         FROM (
-            SELECT 
-                ppc.participantCurrencyId, 
-                ppc.change, 
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
                 tf.settlementWindowId,
                 tf.transferId AS transferId,
                 tf.transferId AS uniqueLegId
-            FROM 
+            FROM
                 transferFulfilment AS tf
-            INNER JOIN 
-                transferStateChange AS tsc 
+            INNER JOIN
+                transferStateChange AS tsc
                 ON tsc.transferId = tf.transferId
-            INNER JOIN 
-                participantPositionChange AS ppc 
+            INNER JOIN
+                participantPositionChange AS ppc
                 ON ppc.transferStateChangeId = tsc.transferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
@@ -71,22 +71,22 @@ spec:
 
             UNION ALL
 
-            SELECT 
-                ppc.participantCurrencyId, 
-                ppc.change, 
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
                 fxtf.settlementWindowId,
                 fxt1.determiningTransferId AS transferId,
                 fxt1.commitRequestId AS uniqueLegId
-            FROM 
+            FROM
                 fxTransferFulfilment AS fxtf
-            INNER JOIN 
+            INNER JOIN
                 fxTransfer AS fxt1
                 ON fxt1.commitRequestId = fxtf.commitRequestId
-            INNER JOIN 
-                fxTransferStateChange AS fxtsc 
+            INNER JOIN
+                fxTransferStateChange AS fxtsc
                 ON fxtsc.commitRequestId = fxtf.commitRequestId
-            INNER JOIN 
-                participantPositionChange AS ppc 
+            INNER JOIN
+                participantPositionChange AS ppc
                 ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
             INNER JOIN
                 settlementParticipantCurrency AS spc
@@ -94,8 +94,8 @@ spec:
             INNER JOIN
                 settlementSettlementWindow ssw
                 ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-        ) AS unioned INNER JOIN 
-            participantCurrency AS pc 
+        ) AS unioned INNER JOIN
+            participantCurrency AS pc
             ON pc.participantCurrencyId = unioned.participantCurrencyId
         GROUP BY
             pc.participantCurrencyId,
@@ -319,7 +319,6 @@ spec:
             </div>
 
             <div class="summary">
-                <p>For Regional Hub</p>
                 <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
                 <p>State: <%= settlementInfo?.currenctState %></p>
                 <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>

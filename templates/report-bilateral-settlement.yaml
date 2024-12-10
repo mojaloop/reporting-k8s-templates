@@ -434,7 +434,6 @@ spec:
             </div>
 
             <div class="summary">
-                <p>For Regional Hub</p>
                 <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
                 <p>State: <%= settlementInfo?.currenctState %></p>
                 <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>
