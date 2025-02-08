@@ -1,118 +1,246 @@
 {{- if .Values.templates.settlementWindow -}}
 
-apiVersion: mojaloop.io/v1
-kind: MojaloopReport
-metadata:
-  name: {{ printf "%s-%s" .Release.Name "settlement-window" | trimPrefix "-" }}
-  {{ include "common.annotations" . | nindent 2 }}
-spec:
-  permission: report-settlement-window
-  endpoint:
-    path: /settlementWindow
-  queries:
-    - name: report
-      query: |
-        SELECT sq.*, swOpen.createdDate AS windowOpen, swClose.createdDate as windowClose
-        FROM
-          (
-              SELECT
-                  qp.fspId,
-                  sw.settlementWindowId,
-                  swsc.settlementWindowStateId AS state,
-                  COUNT(qp.amount) AS numTransactions,
-                  SUM(qp.amount) AS netPosition
-              FROM
-                  central_ledger.settlementWindow AS sw
-              LEFT JOIN
-                   central_ledger.transferFulfilment AS tf
-                   ON tf.settlementWindowId = sw.settlementWindowId
-              LEFT JOIN
-                   central_ledger.transactionReference AS tr
-                   ON tf.transferId = tr.transactionReferenceId
-              INNER JOIN
-                   central_ledger.transferParticipant AS tp
-                   ON tp.transferId = tf.transferId
-              INNER JOIN
-                   central_ledger.transferParticipantRoleType AS trpt
-                   ON trpt.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
-              INNER JOIN
-                   central_ledger.settlementWindowStateChange AS swsc
-                   ON swsc.settlementWindowStateChangeId = sw.currentStateChangeId
-              LEFT JOIN
-                   central_ledger.quoteParty AS qp
-                   ON qp.quoteId = tr.quoteId AND qp.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
-              GROUP BY qp.fspId, sw.settlementWindowId
-          ) AS sq
-        INNER JOIN
-          central_ledger.settlementWindowStateChange AS swOpen
-          ON swOpen.settlementWindowId = sq.settlementWindowId
-        LEFT OUTER JOIN
-          central_ledger.settlementWindowStateChange AS swClose
-          ON swClose.settlementWindowId = sq.settlementWindowId AND swClose.settlementWindowStateId = 'CLOSED'
-        WHERE
-        swOpen.settlementWindowStateId = 'OPEN'
-  template: |
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <style>
-            table {
-                font-family: arial, sans-serif;
-                border-collapse: collapse;
-                width: 100%;
-                display: block;
-                overflow-x: auto;
-                white-space: nowrap;
-            }
+  apiVersion: mojaloop.io/v1
+  kind: MojaloopReport
+  metadata:
+    name: {{ printf "%s-%s" .Release.Name "settlement-window" | trimPrefix "-" }}
+    {{ include "common.annotations" . | nindent 2 }}
+  spec:
+    permission: report-settlement-window
+    endpoint:
+      path: /settlementWindow
+    queries:
+      - name: report
+        query: |
+          SELECT sq.*, swOpen.createdDate AS windowOpen, swClose.createdDate as windowClose
+          FROM
+            (
+                SELECT
+                    qp.fspId,
+                    sw.settlementWindowId,
+                    swsc.settlementWindowStateId AS state,
+                    COUNT(qp.amount) AS numTransactions,
+                    SUM(qp.amount) AS netPosition
+                FROM
+                    central_ledger.settlementWindow AS sw
+                LEFT JOIN
+                    central_ledger.transferFulfilment AS tf
+                    ON tf.settlementWindowId = sw.settlementWindowId
+                LEFT JOIN
+                    central_ledger.transactionReference AS tr
+                    ON tf.transferId = tr.transactionReferenceId
+                INNER JOIN
+                    central_ledger.transferParticipant AS tp
+                    ON tp.transferId = tf.transferId
+                INNER JOIN
+                    central_ledger.transferParticipantRoleType AS trpt
+                    ON trpt.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
+                INNER JOIN
+                    central_ledger.settlementWindowStateChange AS swsc
+                    ON swsc.settlementWindowStateChangeId = sw.currentStateChangeId
+                LEFT JOIN
+                    central_ledger.quoteParty AS qp
+                    ON qp.quoteId = tr.quoteId AND qp.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
+                GROUP BY qp.fspId, sw.settlementWindowId
+            ) AS sq
+          INNER JOIN
+            central_ledger.settlementWindowStateChange AS swOpen
+            ON swOpen.settlementWindowId = sq.settlementWindowId
+          LEFT OUTER JOIN
+            central_ledger.settlementWindowStateChange AS swClose
+            ON swClose.settlementWindowId = sq.settlementWindowId AND swClose.settlementWindowStateId = 'CLOSED'
+          WHERE
+          swOpen.settlementWindowStateId = 'OPEN'
+    template: |
+      <!DOCTYPE html>
+      <html lang="en">
 
-            th {
-            //            border: 1px solid #efefef;
-                text-align: left;
-                padding: 0 8px;
-            }
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>FSP Settlement Report</title>
+          <style>
+              body {
+                  font-family: 'Arial', sans-serif;
+                  background-color: #f5f5f5;
+                  margin: 0;
+                  padding: 20px;
+                  color: #333;
+              }
 
-            td {
-    //            border: 1px solid #efefef;
-                padding: 8px;
-            }
+              .container {
+                  max-width: 100%;
+                  margin: 0 auto;
+                  background-color: #fff;
+                  padding: 20px;
+                  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+              }
 
-            tr:nth-child(even) {
-    //            background-color: #efefef;
-            }
+              .grid-container {
+                  display: grid;
+                  grid-template-columns: repeat(2, 1fr);
+                  gap: 20px;
+              }
 
-            td > span {
-                font-weight: bold;
-            }
-        </style>
-        <title>FSP Settlement Report</title>
-    </head>
-    <body>
+              .grid-block {
+                  padding: 2px;
+                  border-radius: 8px;
+              }
 
-    <%
-        const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
-    %>
+              .header {
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  border-bottom: 2px solid #00447c;
+                  padding-bottom: 10px;
+              }
 
-    <table>
-            <tr>
-                <td>fspId</td>
-                <td>settlementWindowId</td>
-                <td>state</td>
-                <td>numTransactions</td>
-                <td>netPosition</td>
-                <td>windowOpen</td>
-            </tr>
-            <% for(let e of report) { %>
-                <tr>
-                    <td><%= e.fspId %></td>
-                    <td><%= e.settlementWindowId %></td>
-                    <td><%= e.state %></td>
-                    <td><%= e.numTransactions %></td>
-                    <td><%= e.netPosition %></td>
-                    <td><%= e.windowOpen.toISOString() %></td>
-                </tr>
-            <% } %>
-        </table>
-    </body>
-    </html>
+              .header h1 {
+                  margin: 0;
+                  color: #00447c;
+                  font-size: 24px;
+              }
+
+              .header img {
+                  max-height: 50px;
+              }
+
+              .summary {
+                  margin-top: 20px;
+                  padding: 15px;
+                  background-color: #e9f3fa;
+                  border-left: 6px solid #00447c;
+                  border-radius: 5px;
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                  max-width: 500px;
+              }
+
+              .summary p {
+                  margin: 5px 0;
+                  font-weight: bold;
+              }
+
+              table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  margin-top: 20px;
+              }
+
+              table, th, td {
+                  border: 1px solid #ddd;
+              }
+
+              th {
+                  background-color: #00447c;
+                  color: #fff;
+                  padding: 10px;
+                  font-size: 1.0em;
+              }
+
+              td {
+                  line-height: 1.6;
+                  padding: 10px;
+                  text-align: left;
+                  font-size: 0.9em;
+              }
+
+              tr:nth-child(even) {
+                  background-color: #f2f2f2;
+              }
+
+              .smallFont {
+                  font-size: 0.7em;
+              }
+
+              .thStyle {
+                  background-color: #00447c;
+                  color: #fff;
+                  padding: 10px;
+                  font-size: 1.0em;
+              }
+
+              .button-link {
+                  display: inline-block;
+                  padding: 10px 20px;
+                  font-size: 16px;
+                  color: #fff;
+                  background-color: #007bff;
+                  text-decoration: none;
+                  border-radius: 5px;
+                  transition: background-color 0.3s, transform 0.2s;
+                  font-weight: 500;
+                  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+              }
+
+              .button-link:hover {
+                  background-color: #0056b3;
+                  transform: translateY(-2px);
+                  box-shadow: 0 6px 12px rgba(0, 86, 179, 0.3);
+              }
+
+              .button-link:active {
+                  transform: translateY(0);
+                  box-shadow: 0 4px 8px rgba(0, 86, 179, 0.2);
+              }
+
+              .highlight-link {
+                  color: #007bff;
+                  text-decoration: none;
+                  padding: 3px 5px;
+                  border-radius: 3px;
+                  transition: background-color 0.2s, color 0.2s;
+              }
+
+              .highlight-link:hover {
+                  background-color: #00447c;
+                  color: white;
+              }
+
+              .footer {
+                  margin-top: 20px;
+                  text-align: center;
+                  font-size: 0.9em;
+                  color: #666;
+              }
+
+              .footer p {
+                  margin: 5px 0;
+              }
+          </style>
+      </head>
+      <body>
+        <div class="header">
+            <h1>FSP Settlement Report 2</h1>
+            <img src="" alt="Logo">
+        </div>
+        <%
+            const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
+        %>
+
+        <table>
+              <tr>
+                  <td>fspId</td>
+                  <td>settlementWindowId</td>
+                  <td>state</td>
+                  <td>numTransactions</td>
+                  <td>netPosition</td>
+                  <td>windowOpen</td>
+              </tr>
+              <% for(let e of report) { %>
+                  <tr>
+                      <td><%= e.fspId %></td>
+                      <td><%= e.settlementWindowId %></td>
+                      <td><%= e.state %></td>
+                      <td><%= e.numTransactions %></td>
+                      <td><%= e.netPosition %></td>
+                      <td><%= e.windowOpen.toISOString() %></td>
+                  </tr>
+              <% } %>
+          </table>
+          <div class="footer">
+              <p>Generated on: <%= (new Date()).toUTCString() %></p>
+          </div>
+      </body>
+      </html>
 
 {{- end }}
