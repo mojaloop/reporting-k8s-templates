@@ -7,104 +7,101 @@ spec:
   endpoint:
     path: /settlementWindow
   queries:
-    - name: report
+    - name: getLatestSettlementWindowState
       query: |
-          SELECT
+        SELECT settlementWindowId, settlementWindowStateId
+        FROM (
+        SELECT settlementWindowId, settlementWindowStateId,
+            ROW_NUMBER() OVER (PARTITION BY settlementWindowId ORDER BY createdDate DESC) as rn
+        FROM central_ledger.settlementWindowStateChange
+        ) t
+        WHERE rn = 1;
+    - name: allParticipantCurrencyIds
+      query: >
+        SELECT
+          pc.participantCurrencyId,
+          pc.participantId,
+          pc.currencyId,
+          p.name,
+          p.description,
+          p.isProxy
+        FROM participantCurrency AS pc
+        INNER JOIN
+            participant AS p
+            ON pc.participantId = p.participantId
+        ORDER BY pc.participantCurrencyId;
+    - name: getPositionMovementsPerSettlementWindow
+      query: |
+        SELECT
+          result1.settlementWindowId as settlementWindowId,
+          result1.participantCurrencyId as participantCurrencyId,
+          SUM(result1.amount) as netAmount,
+          result1.swOpenCreated,
+          result1.swClosedCreated
+        FROM
+          (
+            SELECT
               sw.settlementWindowId,
-              p.name as fspId,
-              result1.state as state,
-              pc.currencyId as currency,
-              SUM(result1.amount) as netPosition,
-              swOpen.createdDate AS windowOpen,
-              swClose.createdDate as windowClose
-          FROM
-
-          (SELECT
-              unioned.participantCurrencyId,
-              unioned.change as amount,
-              unioned.settlementWindowId as settlementWindowId,
-              unioned.state AS state
-          FROM (
-              SELECT
+              pc.participantCurrencyId,
+            swOpen.createdDate as swOpenCreated,
+            swClose.createdDate as swClosedCreated,
+              unioned.transferId,
+              unioned.uniqueLegId,
+              SUM(unioned.change) as amount
+            FROM
+              (
+                SELECT
                   ppc.participantCurrencyId,
                   ppc.change,
-                  tf.settlementWindowId as settlementWindowId,
-                  swsc.settlementWindowStateId AS state
-              FROM
+                  tf.settlementWindowId,
+                  tf.transferId AS transferId,
+                  tf.transferId AS uniqueLegId
+                FROM
                   transferFulfilment AS tf
-              INNER JOIN
-                  transferStateChange AS tsc
-                  ON tsc.transferId = tf.transferId
-              INNER JOIN
-                  participantPositionChange AS ppc
-                  ON ppc.transferStateChangeId = tsc.transferStateChangeId
-              INNER JOIN
-                  settlementParticipantCurrency AS spc
-                  ON ppc.participantCurrencyId = spc.participantCurrencyId
-              INNER JOIN
-                  settlementSettlementWindow ssw
-                  ON tf.settlementWindowId = ssw.settlementWindowId
-              INNER JOIN
-                  central_ledger.settlementWindow AS sw
-                  ON sw.settlementWindowId = tf.settlementWindowId
-              INNER JOIN
-                  central_ledger.settlementWindowStateChange AS swsc
-                  ON swsc.settlementWindowStateChangeId = sw.currentStateChangeId
-              UNION ALL
-
-              SELECT
+                  INNER JOIN transferStateChange AS tsc ON tsc.transferId = tf.transferId
+                  INNER JOIN participantPositionChange AS ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
+                  INNER JOIN settlementSettlementWindow ssw ON tf.settlementWindowId = ssw.settlementWindowId
+                  INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId
+                  AND spc.settlementId = ssw.settlementId
+                UNION ALL
+                SELECT
                   ppc.participantCurrencyId,
                   ppc.change,
                   fxtf.settlementWindowId,
-                  swsc.settlementWindowStateId AS state
-              FROM
+                  fxt1.determiningTransferId AS transferId,
+                  fxt1.commitRequestId AS uniqueLegId
+                FROM
                   fxTransferFulfilment AS fxtf
-              INNER JOIN
-                  fxTransfer AS fxt1
-                  ON fxt1.commitRequestId = fxtf.commitRequestId
-              INNER JOIN
-                  fxTransferStateChange AS fxtsc
-                  ON fxtsc.commitRequestId = fxtf.commitRequestId
-              INNER JOIN
-                  participantPositionChange AS ppc
-                  ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-              INNER JOIN
-                  settlementParticipantCurrency AS spc
-                  ON ppc.participantCurrencyId = spc.participantCurrencyId
-              INNER JOIN
-                  settlementSettlementWindow ssw
-                  ON fxtf.settlementWindowId = ssw.settlementWindowId
-              INNER JOIN
-                  central_ledger.settlementWindow AS sw
-                  ON sw.settlementWindowId = fxtf.settlementWindowId
-              INNER JOIN
-                  central_ledger.settlementWindowStateChange AS swsc
-                  ON swsc.settlementWindowStateChangeId = sw.currentStateChangeId
-          ) as unioned
-          ) as result1
-          INNER JOIN
-              central_ledger.participantCurrency as pc
-              ON pc.participantCurrencyId = result1.participantCurrencyId
-          INNER JOIN
-              central_ledger.participant AS p
-              ON p.participantId = pc.participantCurrencyId
-          INNER JOIN
-              central_ledger.settlementWindow AS sw
-              ON sw.settlementWindowId = result1.settlementWindowId
-          INNER JOIN
-              central_ledger.settlementWindowStateChange AS swOpen
-              ON swOpen.settlementWindowId = result1.settlementWindowId
-          LEFT OUTER JOIN
-              central_ledger.settlementWindowStateChange AS swClose
-              ON swClose.settlementWindowId = result1.settlementWindowId AND swClose.settlementWindowStateId = 'CLOSED'
-          WHERE
+                  INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
+                  INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
+                  INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+                  INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId
+                  INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId
+                  AND spc.settlementId = ssw.settlementId
+              ) AS unioned
+              INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
+              INNER JOIN settlementWindow as sw ON sw.settlementWindowId = unioned.settlementWindowId
+              INNER JOIN central_ledger.settlementWindowStateChange AS swOpen ON swOpen.settlementWindowId = unioned.settlementWindowId
+              LEFT OUTER JOIN central_ledger.settlementWindowStateChange AS swClose ON swClose.settlementWindowId = unioned.settlementWindowId
+              AND swClose.settlementWindowStateId = 'CLOSED'
+            WHERE
               swOpen.settlementWindowStateId = 'OPEN'
-          GROUP BY
-              p.name,
+            GROUP BY
               sw.settlementWindowId,
-              unioned.state,
-              swOpen.createdDate,
-              swClose.createdDate
+              pc.participantCurrencyId,
+            swOpen.createdDate,
+            swClose.createdDate,
+              unioned.transferId,
+              unioned.uniqueLegId
+            ORDER BY
+              unioned.transferId
+          ) as result1
+        GROUP BY
+          result1.settlementWindowId,
+          result1.participantCurrencyId,
+          result1.swOpenCreated,
+          result1.swClosedCreated
+
   template: |
     <!DOCTYPE html>
     <html lang="en">
@@ -269,8 +266,34 @@ spec:
             <img src="" alt="Logo">
         </div>
         <%
-            const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
+          const latestSettlementWindowStateMap = {};
+          for (let row of getLatestSettlementWindowState) {
+            latestSettlementWindowStateMap[row.settlementWindowId] = row.settlementWindowStateId;
+          }
+
+          const participantCurrencyMap = {};
+          for (let row of allParticipantCurrencyIds) {
+            participantCurrencyMap[row.participantCurrencyId] = {
+              currencyId: row.currencyId,
+              name: row.name
+            };
+          }
+
+          const report = [];
+          for (let row of getPositionMovementsPerSettlementWindow) {
+            const currencyInfo = participantCurrencyMap[row.participantCurrencyId];
+            const state = latestSettlementWindowStateMap[row.settlementWindowId];
+            report.push({
+              fspId: currencyInfo.name,
+              settlementWindowId: row.settlementWindowId,
+              state: state,
+              currency: currencyInfo.currencyId,
+              netPosition: row.netAmount,
+              windowOpen: new Date(row.swOpenCreated)
+            });
+          }
         %>
+
 
         <table cellpadding='0' cellspacing='0'>
               <tr>
