@@ -1,228 +1,283 @@
-{{- if .Values.templates.settlementWindow -}}
-
-  apiVersion: mojaloop.io/v1
-  kind: MojaloopReport
-  metadata:
-    name: {{ printf "%s-%s" .Release.Name "settlement-window" | trimPrefix "-" }}
-    {{ include "common.annotations" . | nindent 2 }}
-  spec:
-    permission: report-settlement-window
-    endpoint:
-      path: /settlementWindow
-    queries:
-      - name: report
-        query: |
-          SELECT sq.*, swOpen.createdDate AS windowOpen, swClose.createdDate as windowClose
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: "settlement-window"
+spec:
+  permission: report-settlement-window
+  endpoint:
+    path: /settlementWindow
+  queries:
+    - name: report
+      query: |
+          SELECT
+              sw.settlementWindowId,
+              p.name as fspId,
+              result1.state as state,
+              pc.currencyId as currency,
+              SUM(result1.amount) as netPosition,
+              swOpen.createdDate AS windowOpen,
+              swClose.createdDate as windowClose
           FROM
-            (
-                SELECT
-                    qp.fspId,
-                    sw.settlementWindowId,
-                    swsc.settlementWindowStateId AS state,
-                    COUNT(qp.amount) AS numTransactions,
-                    SUM(qp.amount) AS netPosition
-                FROM
-                    central_ledger.settlementWindow AS sw
-                LEFT JOIN
-                    central_ledger.transferFulfilment AS tf
-                    ON tf.settlementWindowId = sw.settlementWindowId
-                LEFT JOIN
-                    central_ledger.transactionReference AS tr
-                    ON tf.transferId = tr.transactionReferenceId
-                INNER JOIN
-                    central_ledger.transferParticipant AS tp
-                    ON tp.transferId = tf.transferId
-                INNER JOIN
-                    central_ledger.transferParticipantRoleType AS trpt
-                    ON trpt.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
-                INNER JOIN
-                    central_ledger.settlementWindowStateChange AS swsc
-                    ON swsc.settlementWindowStateChangeId = sw.currentStateChangeId
-                LEFT JOIN
-                    central_ledger.quoteParty AS qp
-                    ON qp.quoteId = tr.quoteId AND qp.transferParticipantRoleTypeId = tp.transferParticipantRoleTypeId
-                GROUP BY qp.fspId, sw.settlementWindowId
-            ) AS sq
+
+          (SELECT
+              unioned.participantCurrencyId,
+              unioned.change as amount,
+              unioned.settlementWindowId as settlementWindowId,
+              unioned.state AS state
+          FROM (
+              SELECT
+                  ppc.participantCurrencyId,
+                  ppc.change,
+                  tf.settlementWindowId as settlementWindowId,
+                  swsc.settlementWindowStateId AS state
+              FROM
+                  transferFulfilment AS tf
+              INNER JOIN
+                  transferStateChange AS tsc
+                  ON tsc.transferId = tf.transferId
+              INNER JOIN
+                  participantPositionChange AS ppc
+                  ON ppc.transferStateChangeId = tsc.transferStateChangeId
+              INNER JOIN
+                  settlementParticipantCurrency AS spc
+                  ON ppc.participantCurrencyId = spc.participantCurrencyId
+              INNER JOIN
+                  settlementSettlementWindow ssw
+                  ON tf.settlementWindowId = ssw.settlementWindowId
+              INNER JOIN
+                  central_ledger.settlementWindow AS sw
+                  ON sw.settlementWindowId = tf.settlementWindowId
+              INNER JOIN
+                  central_ledger.settlementWindowStateChange AS swsc
+                  ON swsc.settlementWindowStateChangeId = sw.currentStateChangeId
+              UNION ALL
+
+              SELECT
+                  ppc.participantCurrencyId,
+                  ppc.change,
+                  fxtf.settlementWindowId,
+                  swsc.settlementWindowStateId AS state
+              FROM
+                  fxTransferFulfilment AS fxtf
+              INNER JOIN
+                  fxTransfer AS fxt1
+                  ON fxt1.commitRequestId = fxtf.commitRequestId
+              INNER JOIN
+                  fxTransferStateChange AS fxtsc
+                  ON fxtsc.commitRequestId = fxtf.commitRequestId
+              INNER JOIN
+                  participantPositionChange AS ppc
+                  ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+              INNER JOIN
+                  settlementParticipantCurrency AS spc
+                  ON ppc.participantCurrencyId = spc.participantCurrencyId
+              INNER JOIN
+                  settlementSettlementWindow ssw
+                  ON fxtf.settlementWindowId = ssw.settlementWindowId
+              INNER JOIN
+                  central_ledger.settlementWindow AS sw
+                  ON sw.settlementWindowId = fxtf.settlementWindowId
+              INNER JOIN
+                  central_ledger.settlementWindowStateChange AS swsc
+                  ON swsc.settlementWindowStateChangeId = sw.currentStateChangeId
+          ) as unioned
+          ) as result1
           INNER JOIN
-            central_ledger.settlementWindowStateChange AS swOpen
-            ON swOpen.settlementWindowId = sq.settlementWindowId
+              central_ledger.participantCurrency as pc
+              ON pc.participantCurrencyId = result1.participantCurrencyId
+          INNER JOIN
+              central_ledger.participant AS p
+              ON p.participantId = pc.participantCurrencyId
+          INNER JOIN
+              central_ledger.settlementWindow AS sw
+              ON sw.settlementWindowId = result1.settlementWindowId
+          INNER JOIN
+              central_ledger.settlementWindowStateChange AS swOpen
+              ON swOpen.settlementWindowId = result1.settlementWindowId
           LEFT OUTER JOIN
-            central_ledger.settlementWindowStateChange AS swClose
-            ON swClose.settlementWindowId = sq.settlementWindowId AND swClose.settlementWindowStateId = 'CLOSED'
+              central_ledger.settlementWindowStateChange AS swClose
+              ON swClose.settlementWindowId = result1.settlementWindowId AND swClose.settlementWindowStateId = 'CLOSED'
           WHERE
-          swOpen.settlementWindowStateId = 'OPEN'
-    template: |
-      <!DOCTYPE html>
-      <html lang="en">
+              swOpen.settlementWindowStateId = 'OPEN'
+          GROUP BY
+              p.name,
+              sw.settlementWindowId,
+              unioned.state,
+              swOpen.createdDate,
+              swClose.createdDate
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
 
-      <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>FSP Settlement Report</title>
-          <style>
-              body {
-                  font-family: 'Arial', sans-serif;
-                  background-color: #f5f5f5;
-                  margin: 0;
-                  padding: 20px;
-                  color: #333;
-              }
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>FSP Settlement Report</title>
+        <style>
+            body {
+                font-family: 'Arial', sans-serif;
+                background-color: #f5f5f5;
+                margin: 0;
+                padding: 20px;
+                color: #333;
+            }
 
-              .container {
-                  max-width: 100%;
-                  margin: 0 auto;
-                  background-color: #fff;
-                  padding: 20px;
-                  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-              }
+            .container {
+                max-width: 100%;
+                margin: 0 auto;
+                background-color: #fff;
+                padding: 20px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
 
-              .grid-container {
-                  display: grid;
-                  grid-template-columns: repeat(2, 1fr);
-                  gap: 20px;
-              }
+            .grid-container {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+            }
 
-              .grid-block {
-                  padding: 2px;
-                  border-radius: 8px;
-              }
+            .grid-block {
+                padding: 2px;
+                border-radius: 8px;
+            }
 
-              .header {
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                  border-bottom: 2px solid #00447c;
-                  padding-bottom: 10px;
-              }
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #00447c;
+                padding-bottom: 10px;
+            }
 
-              .header h1 {
-                  margin: 0;
-                  color: #00447c;
-                  font-size: 24px;
-              }
+            .header h1 {
+                margin: 0;
+                color: #00447c;
+                font-size: 24px;
+            }
 
-              .header img {
-                  max-height: 50px;
-              }
+            .header img {
+                max-height: 50px;
+            }
 
-              .summary {
-                  margin-top: 20px;
-                  padding: 15px;
-                  background-color: #e9f3fa;
-                  border-left: 6px solid #00447c;
-                  border-radius: 5px;
-                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                  max-width: 500px;
-              }
+            .summary {
+                margin-top: 20px;
+                padding: 15px;
+                background-color: #e9f3fa;
+                border-left: 6px solid #00447c;
+                border-radius: 5px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                max-width: 500px;
+            }
 
-              .summary p {
-                  margin: 5px 0;
-                  font-weight: bold;
-              }
+            .summary p {
+                margin: 5px 0;
+                font-weight: bold;
+            }
 
-              table {
-                  width: 100%;
-                  border-collapse: collapse;
-                  margin-top: 20px;
-              }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }
 
-              table, th, td {
-                  border: 1px solid #ddd;
-              }
+            table, th, td {
+                border: 1px solid #ddd;
+            }
 
-              th {
-                  background-color: #00447c;
-                  color: #fff;
-                  padding: 10px;
-                  font-size: 1.0em;
-              }
+            th {
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
+            }
 
-              td {
-                  line-height: 1.6;
-                  padding: 10px;
-                  text-align: left;
-                  font-size: 0.9em;
-              }
+            td {
+                line-height: 1.6;
+                padding: 10px;
+                text-align: left;
+                font-size: 0.9em;
+            }
 
-              tr:nth-child(even) {
-                  background-color: #f2f2f2;
-              }
+            tr:nth-child(even) {
+                background-color: #f2f2f2;
+            }
 
-              .smallFont {
-                  font-size: 0.7em;
-              }
+            .smallFont {
+                font-size: 0.7em;
+            }
 
-              .thStyle {
-                  background-color: #00447c;
-                  color: #fff;
-                  padding: 10px;
-                  font-size: 1.0em;
-              }
+            .thStyle {
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
+            }
 
-              .button-link {
-                  display: inline-block;
-                  padding: 10px 20px;
-                  font-size: 16px;
-                  color: #fff;
-                  background-color: #007bff;
-                  text-decoration: none;
-                  border-radius: 5px;
-                  transition: background-color 0.3s, transform 0.2s;
-                  font-weight: 500;
-                  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
-              }
+            .button-link {
+                display: inline-block;
+                padding: 10px 20px;
+                font-size: 16px;
+                color: #fff;
+                background-color: #007bff;
+                text-decoration: none;
+                border-radius: 5px;
+                transition: background-color 0.3s, transform 0.2s;
+                font-weight: 500;
+                box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+            }
 
-              .button-link:hover {
-                  background-color: #0056b3;
-                  transform: translateY(-2px);
-                  box-shadow: 0 6px 12px rgba(0, 86, 179, 0.3);
-              }
+            .button-link:hover {
+                background-color: #0056b3;
+                transform: translateY(-2px);
+                box-shadow: 0 6px 12px rgba(0, 86, 179, 0.3);
+            }
 
-              .button-link:active {
-                  transform: translateY(0);
-                  box-shadow: 0 4px 8px rgba(0, 86, 179, 0.2);
-              }
+            .button-link:active {
+                transform: translateY(0);
+                box-shadow: 0 4px 8px rgba(0, 86, 179, 0.2);
+            }
 
-              .highlight-link {
-                  color: #007bff;
-                  text-decoration: none;
-                  padding: 3px 5px;
-                  border-radius: 3px;
-                  transition: background-color 0.2s, color 0.2s;
-              }
+            .highlight-link {
+                color: #007bff;
+                text-decoration: none;
+                padding: 3px 5px;
+                border-radius: 3px;
+                transition: background-color 0.2s, color 0.2s;
+            }
 
-              .highlight-link:hover {
-                  background-color: #00447c;
-                  color: white;
-              }
+            .highlight-link:hover {
+                background-color: #00447c;
+                color: white;
+            }
 
-              .footer {
-                  margin-top: 20px;
-                  text-align: center;
-                  font-size: 0.9em;
-                  color: #666;
-              }
+            .footer {
+                margin-top: 20px;
+                text-align: center;
+                font-size: 0.9em;
+                color: #666;
+            }
 
-              .footer p {
-                  margin: 5px 0;
-              }
-          </style>
-      </head>
-      <body>
+            .footer p {
+                margin: 5px 0;
+            }
+        </style>
+    </head>
+    <body>
+      <div class="container">
         <div class="header">
-            <h1>FSP Settlement Report 2</h1>
+            <h1>FSP Settlement Report</h1>
             <img src="" alt="Logo">
         </div>
         <%
             const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
         %>
 
-        <table>
+        <table cellpadding='0' cellspacing='0'>
               <tr>
                   <td>fspId</td>
                   <td>settlementWindowId</td>
                   <td>state</td>
-                  <td>numTransactions</td>
+                  <td>currency</td>
                   <td>netPosition</td>
                   <td>windowOpen</td>
               </tr>
@@ -231,7 +286,7 @@
                       <td><%= e.fspId %></td>
                       <td><%= e.settlementWindowId %></td>
                       <td><%= e.state %></td>
-                      <td><%= e.numTransactions %></td>
+                      <td><%= e.currency %></td>
                       <td><%= e.netPosition %></td>
                       <td><%= e.windowOpen.toISOString() %></td>
                   </tr>
@@ -240,7 +295,7 @@
           <div class="footer">
               <p>Generated on: <%= (new Date()).toUTCString() %></p>
           </div>
-      </body>
-      </html>
+        </div>
+    </body>
+    </html>
 
-{{- end }}
