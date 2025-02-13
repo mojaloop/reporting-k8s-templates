@@ -1,9 +1,7 @@
-{{- if .Values.templates.dfspSettlementDetail -}}
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: {{ printf "%s-%s" .Release.Name "dfsp-settlement-detail" | trimPrefix "-" }}
-  {{ include "common.annotations" . | nindent 2 }}
+  name: "dfsp-settlement-detail"
 spec:
   permission: report-dfsp-settlement-detail
   endpoint:
@@ -17,154 +15,428 @@ spec:
     - name: dfspInfo
       query: |
         SELECT participantId, name FROM participant WHERE name = :fspid AND name != 'Hub'
-    - name: report
+    - name: getSettlement
       query: |
         SELECT
-                pCPayer.participantId as payerFspid,
-                pPayer.name as payerFspName,
-                pCPayee.participantId as payeeFspid,
-                pPayee.name as payeeFspName,
-                tF.transferId,
-                tS.name as transactionType,
-                tSS.name as transactionNature,
-                tF.completedDate as lastModifiedDate,
-                pITPayer.name as payerIdentifierType,
-                qpPayer.partyIdentifierValue as payerIdentifierValue,
-                pITPayee.name as payeeIdentifierType,
-                qpPayee.partyIdentifierValue as payeeIdentifierValue,
-                IF(pPayee.name = :fspid, t.amount, 0) as receivedAmount,
-                IF(pPayer.name = :fspid, t.amount, 0) as sentAmount,
-                c.currencyId,
-                s.settlementId,
-                s.createdDate as settlementCreatedDate,
-                sSW.settlementWindowId
+          settlementId,
+          createdDate as settlementCreatedDate
+        FROM
+          settlement
+        WHERE
+          settlementId = :settlementId
+    - name: allParticipantCurrencyIds
+      query: >
+        SELECT
+          pc.participantCurrencyId,
+          pc.participantId,
+          pc.currencyId,
+          p.name,
+          p.description,
+          p.isProxy
+        FROM participantCurrency AS pc
+        INNER JOIN
+            participant AS p
+            ON pc.participantId = p.participantId
+        ORDER BY pc.participantCurrencyId;
+    - name: getPositionMovementsPerSettlementWindow
+      query: |
+        SELECT
+          result1.transferId as transferId,
+          result1.settlementWindowId as settlementWindowId,
+          result1.participantCurrencyId as participantCurrencyId,
+          SUM(result1.amount) as netAmount,
+          result1.swOpenCreated,
+          result1.swClosedCreated
+        FROM
+          (
+            SELECT
+              sw.settlementWindowId,
+              pc.participantCurrencyId,
+            swOpen.createdDate as swOpenCreated,
+            swClose.createdDate as swClosedCreated,
+              unioned.transferId,
+              unioned.uniqueLegId,
+              SUM(unioned.change) as amount
             FROM
-                transferFulfilment tF
-                INNER JOIN transfer t ON t.transferId = tF.transferId
-                INNER JOIN transferParticipant tPPayer ON tPPayer.transferId = tF.transferId
-                    AND tPPayer.transferParticipantRoleTypeId = (SELECT transferParticipantRoleTypeId from transferParticipantRoleType WHERE name = 'PAYER_DFSP')
-                    INNER JOIN participantCurrency pCPayer ON pCPayer.participantCurrencyId = tPPayer.participantCurrencyId
-                    INNER JOIN participant pPayer ON pPayer.participantId = pCPayer.participantId
-                INNER JOIN transferParticipant tPPayee ON tPPayee.transferId = tF.transferId
-                    AND tPPayee.transferParticipantRoleTypeId = (SELECT transferParticipantRoleTypeId from transferParticipantRoleType WHERE name = 'PAYEE_DFSP')
-                    INNER JOIN participantCurrency pCPayee ON pCPayee.participantCurrencyId = tPPayee.participantCurrencyId
-                    INNER JOIN participant pPayee ON pPayee.participantId = pCPayee.participantId
-                INNER JOIN settlementWindow sW on sW.settlementWindowId = tF.settlementWindowId
-                INNER JOIN settlementSettlementWindow sSW on tF.settlementWindowId = sSW.settlementWindowId
-                INNER JOIN settlementWindowStateChange sWSC on sW.currentStateChangeId = sWSC.settlementWindowStateChangeId
-                INNER JOIN settlement s on sSW.settlementId = s.settlementId
-                INNER JOIN settlementModel sM ON sM.settlementModelId = s.settlementModelId
-                INNER JOIN currency c ON c.currencyId = sM.currencyId
-                INNER JOIN quote q on q.transactionReferenceId = tF.transferId
-                INNER JOIN quoteParty qpPayer on qpPayer.quoteId = q.quoteId AND qpPayer.partyTypeId = (SELECT partyTypeId FROM partyType WHERE name = 'PAYER')
-                    INNER JOIN partyIdentifierType pITPayer ON pITPayer.partyIdentifierTypeId = qpPayer.partyIdentifierTypeId
-                INNER JOIN quoteParty qpPayee on qpPayee.quoteId = q.quoteId AND qpPayee.partyTypeId = (SELECT partyTypeId FROM partyType WHERE name = 'PAYEE')
-                    INNER JOIN partyIdentifierType pITPayee ON pITPayee.partyIdentifierTypeId = qpPayee.partyIdentifierTypeId
-                INNER JOIN transactionScenario tS on tS.transactionScenarioId = q.transactionScenarioId
-                LEFT JOIN transactionSubScenario tSS on tSS.transactionSubScenarioId = q.transactionSubScenarioId
+              (
+                SELECT
+                  ppc.participantCurrencyId,
+                  ppc.change,
+                  tf.settlementWindowId,
+                  tf.transferId AS transferId,
+                  tf.transferId AS uniqueLegId
+                FROM
+                  transferFulfilment AS tf
+                  INNER JOIN transferStateChange AS tsc ON tsc.transferId = tf.transferId
+                  INNER JOIN participantPositionChange AS ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
+                  INNER JOIN settlementSettlementWindow ssw ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+                  INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+                UNION ALL
+                SELECT
+                  ppc.participantCurrencyId,
+                  ppc.change,
+                  fxtf.settlementWindowId,
+                  fxt1.determiningTransferId AS transferId,
+                  fxt1.commitRequestId AS uniqueLegId
+                FROM
+                  fxTransferFulfilment AS fxtf
+                  INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
+                  INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
+                  INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+                  INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+                  INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+              ) AS unioned
+              INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
+              INNER JOIN participant AS p ON p.participantId = pc.participantId
+              INNER JOIN settlementWindow as sw ON sw.settlementWindowId = unioned.settlementWindowId
+              INNER JOIN central_ledger.settlementWindowStateChange AS swOpen ON swOpen.settlementWindowId = unioned.settlementWindowId
+              LEFT OUTER JOIN central_ledger.settlementWindowStateChange AS swClose ON swClose.settlementWindowId = unioned.settlementWindowId
+              AND swClose.settlementWindowStateId = 'CLOSED'
             WHERE
-                tF.isValid
-                AND s.settlementId = :settlementId
-                AND (pPayee.name = :fspid OR pPayer.name = :fspid)
+              swOpen.settlementWindowStateId = 'OPEN'
+            GROUP BY
+              sw.settlementWindowId,
+              pc.participantCurrencyId,
+            swOpen.createdDate,
+            swClose.createdDate,
+              unioned.transferId,
+              unioned.uniqueLegId
+            ORDER BY
+              unioned.transferId
+          ) as result1
+        GROUP BY
+          result1.settlementWindowId,
+          result1.participantCurrencyId,
+          result1.swOpenCreated,
+          result1.swClosedCreated,
+          result1.transferId
+    - name: getFxQuoteConversionTerms
+      query: |
+        SELECT * FROM central_ledger.fxQuoteConversionTerms;
+    - name: getQuoteParties
+      query: |
+        SELECT
+            q.transactionReferenceId,
+            qp.fspId,
+            ts.name as transactionScenarioName,
+            tSS.name as transactionSubScenarioName,
+            pit.name as partyIdentifierType,
+            qp.partyIdentifierValue as partyIdentifierValue
+        FROM central_ledger.quoteParty as qp
+        JOIN quote q on q.quoteId = qp.quoteId
+        JOIN transactionScenario ts on ts.transactionScenarioId = q.transactionScenarioId
+        JOIN partyIdentifierType pit on pit.partyIdentifierTypeId = qp.partyIdentifierTypeId
+        LEFT JOIN transactionSubScenario tSS on tSS.transactionSubScenarioId = q.transactionSubScenarioId
   template: |
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <style>
-            table {
-                font-family: Calibri;
-                font-size: 11pt;
-                border-collapse: collapse;
-                width: 100%;
-                display: block;
-                overflow-x: auto;
-                white-space: nowrap;
+            body {
+                font-family: 'Arial', sans-serif;
+                background-color: #f5f5f5;
+                margin: 0;
+                padding: 20px;
+                color: #333;
             }
+
+            .container {
+                max-width: 100%;
+                margin: 0 auto;
+                background-color: #fff;
+                padding: 20px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+
+            .grid-container {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+            }
+
+            .grid-block {
+                padding: 2px;
+                border-radius: 8px;
+            }
+
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #00447c;
+                padding-bottom: 10px;
+            }
+
+            .header h1 {
+                margin: 0;
+                color: #00447c;
+                font-size: 24px;
+            }
+
+            .header img {
+                max-height: 50px;
+            }
+
+            .summary {
+                margin-top: 20px;
+                padding: 15px;
+                background-color: #e9f3fa;
+                border-left: 6px solid #00447c;
+                border-radius: 5px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                max-width: 500px;
+            }
+
+            .summary p {
+                margin: 5px 0;
+                font-weight: bold;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }
+
+            table, th, td {
+                border: 1px solid #ddd;
+            }
+
             th {
-            //            border: 1px solid #efefef;
-                text-align: left;
-                padding: 0 8px;
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
             }
 
             td {
-                border: 1px solid black;
-                padding: 8px;
+                line-height: 1.6;
+                padding: 10px;
+                text-align: left;
+                font-size: 0.9em;
             }
 
             tr:nth-child(even) {
-    //            background-color: #efefef;
+                background-color: #f2f2f2;
             }
 
-            td > span {
+            .smallFont {
+                font-size: 0.7em;
+            }
+
+            .thStyle {
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
+                margin-bottom: 10px;
+            }
+
+            .thGroupBy {
+                background-color: #cfdbeb;
+                padding: 10px;
+                font-size: 1.0em;
                 font-weight: bold;
             }
-            tr.noborder td {
-                border: none;
+
+            .thSeparator {
+                background-color: #ffffff;
+                padding: 2px;
+            }
+
+            .button-link {
+                display: inline-block;
+                padding: 10px 20px;
+                font-size: 16px;
+                color: #fff;
+                background-color: #007bff;
+                text-decoration: none;
+                border-radius: 5px;
+                transition: background-color 0.3s, transform 0.2s;
+                font-weight: 500;
+                box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+            }
+
+            .button-link:hover {
+                background-color: #0056b3;
+                transform: translateY(-2px);
+                box-shadow: 0 6px 12px rgba(0, 86, 179, 0.3);
+            }
+
+            .button-link:active {
+                transform: translateY(0);
+                box-shadow: 0 4px 8px rgba(0, 86, 179, 0.2);
+            }
+
+            .highlight-link {
+                color: #007bff;
+                text-decoration: none;
+                padding: 3px 5px;
+                border-radius: 3px;
+                transition: background-color 0.2s, color 0.2s;
+            }
+
+            .highlight-link:hover {
+                background-color: #00447c;
+                color: white;
+            }
+
+            .footer {
+                margin-top: 20px;
+                text-align: center;
+                font-size: 0.9em;
+                color: #666;
+            }
+
+            .footer p {
+                margin: 5px 0;
             }
         </style>
-        <title>FSP Settlement Report</title>
+        <title>FSP Settlement Report 1</title>
     </head>
     <body>
 
     <%
         const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
-    %>
 
-    <table data-json="<%= JSON.stringify(report) %>" data-sheet-name="DFSPSettlementDetailReport">
-         <tr>
-            <td>Participant ID</td>
-            <td style="text-align: right"><%= dfspInfo[0]?.participantId %></td>
-            <td>FSP ID</td>
-            <td style="text-align: right"><%= dfspInfo[0]?.name %></td>
-            <td>Settlement ID</td>
-            <td style="text-align: right"><%= report[0]?.settlementId %></td>
-            <td style="width: 20px"></td>
-            <td>Created Date</td>
-            <td colspan="2" style="text-align: right"><%= report[0]?.settlementCreatedDate.toISOString() %></td>
-            <td style="wisth: 20px"></td>
-            <td>Currency</td>
-            <td><%= report[0]?.currencyId %></td>
-        </tr>
-        <tr class = "noborder">
-            <td colspan="14" style="padding-top: 20px"></td>
-        </tr>
-        <tr>
-            <td>Sender Participant ID</td>
-            <td>Sender FSP ID</td>
-            <td>Receiver Participant ID</td>
-            <td>Receiver FSP ID</td>
-            <td>Transfer ID</td>
-            <td>Tx Type</td>
-            <td>Tx Nature</td>
-            <td>Last Modified</td>
-            <td>Sender ID Type</td>
-            <td>Sender ID</td>
-            <td>Receiver ID Type</td>
-            <td>Receiver ID</td>
-            <td>Received Amount</td>
-            <td>Sent Amount</td>
-            <td>Fee</td>
-        </tr>
-        <% for(let e of report) { %>
+        const participantCurrencyMap = {};
+        for (let row of allParticipantCurrencyIds) {
+            participantCurrencyMap[row.participantCurrencyId] = {
+                currencyId: row.currencyId,
+                name: row.name,
+                participantId: row.participantId
+            };
+        }
+
+        const fxQuoteConversionTerms = {};
+        for (let row of getFxQuoteConversionTerms) {
+            fxQuoteConversionTerms[row.determiningTransferId] = row;
+        }
+
+        const quoteParties = {};
+        for (let row of getQuoteParties) {
+            if (!quoteParties[row.transactionReferenceId]) {
+                quoteParties[row.transactionReferenceId] = {};
+            }
+            quoteParties[row.transactionReferenceId][row.fspId] = row;
+        }
+
+        const report = [];
+        for (let movement of getPositionMovementsPerSettlementWindow) {
+            const participantCurrency = participantCurrencyMap[movement.participantCurrencyId];
+            const otherMovement = getPositionMovementsPerSettlementWindow.find(
+                m => m.transferId === movement.transferId && m.participantCurrencyId !== movement.participantCurrencyId
+            );
+            const otherParticipantCurrency = participantCurrencyMap[otherMovement.participantCurrencyId];
+            if (participantCurrency.participantId !== dfspInfo[0]?.participantId && otherParticipantCurrency.participantId !== dfspInfo[0]?.participantId) {
+                continue;
+            }
+            if (otherMovement) {
+                const index = getPositionMovementsPerSettlementWindow.indexOf(otherMovement);
+                if (index > -1) {
+                    getPositionMovementsPerSettlementWindow.splice(index, 1);
+                }
+            }
+            const isPayer = movement.netAmount > 0;
+            const isSentOrReceived = isPayer && participantCurrency.name == dfspInfo[0]?.name;
+            const isFx = fxQuoteConversionTerms.hasOwnProperty(movement.transferId)
+            let transactionType = isFx ? 'Currency Conversion' : null;
+            let transactionNature = isFx ? 'Payer initiated' : null;
+
+            let payerIdentifierType = 'N/A';
+            let payerIdentifierValue = 'N/A';
+            let payeeIdentifierType = 'N/A';
+            let payeeIdentifierValue = 'N/A';
+
+            if (!isFx) {
+                const quoteParty1 = quoteParties[movement.transferId][participantCurrency.name];
+                const quoteParty2 = quoteParties[movement.transferId][otherParticipantCurrency.name];
+                if (quoteParty1) {
+                    transactionType = quoteParty1.transactionScenarioName;
+                    transactionNature = quoteParty1.transactionSubScenarioName || '-';
+                    payerIdentifierType = quoteParty1.partyIdentifierType;
+                    payerIdentifierValue = quoteParty1.partyIdentifierValue;
+                }
+                if(quoteParty2) {
+                    transactionType = quoteParty2.transactionScenarioName;
+                    transactionNature = quoteParty2.transactionSubScenarioName || '-';
+                    payeeIdentifierType = quoteParty2.partyIdentifierType;
+                    payeeIdentifierValue = quoteParty2.partyIdentifierValue;
+                }
+            }
+            report.push({
+                payerFspid: isPayer ? participantCurrency.participantId : otherParticipantCurrency.participantId,
+                payerFspName: isPayer ? participantCurrency.name : otherParticipantCurrency.name,
+                payeeFspid: isPayer ? otherParticipantCurrency.participantId : participantCurrency.participantId,
+                payeeFspName: isPayer ? otherParticipantCurrency.name : participantCurrency.name,
+                transferId: movement.transferId,
+                transactionType: transactionType,
+                transactionNature: transactionNature,
+                lastModifiedDate: new Date(movement.swClosedCreated || movement.swOpenCreated),
+                payerIdentifierType: payerIdentifierType,
+                payerIdentifierValue: payerIdentifierValue,
+                payeeIdentifierType: payeeIdentifierType,
+                payeeIdentifierValue: payeeIdentifierValue,
+                receivedAmount: isSentOrReceived ? '-' : movement.netAmount,
+                sentAmount: isSentOrReceived ? movement.netAmount : '-',
+                currencyId: participantCurrency.currencyId
+            });
+        }
+    %>
+    <div class="container">
+        <div class="header">
+            <h1>DFSP Settlement Detail</h1>
+            <img src="" alt="Logo">
+        </div>
+        <div class="summary">
+            <p>Participant ID4: <%= dfspInfo[0]?.participantId %></p>
+            <p>FSP ID: <%= dfspInfo[0]?.name %></p>
+            <p>Settlement ID: <%= getSettlement[0]?.settlementId %></p>
+            <p>Created Date: <%= getSettlement[0]?.settlementCreatedDate.toISOString() %></p>
+        </div>
+        <table data-sheet-name="DFSPSettlementDetailReport">
             <tr>
-                <td><%= e.payerFspid %></td>
-                <td><%= e.payerFspName %></td>
-                <td><%= e.payeeFspid %></td>
-                <td><%= e.payeeFspName %></td>
-                <td><%= e.transferId %></td>
-                <td><%= e.transactionType %></td>
-                <td><%= e.transactionNature %></td>
-                <td><%= e.lastModifiedDate.toISOString() %></td>
-                <td><%= e.payerIdentifierType %></td>
-                <td><%= e.payerIdentifierValue %></td>
-                <td><%= e.payeeIdentifierType %></td>
-                <td><%= e.payeeIdentifierValue %></td>
-                <td><%= formatAmount(e.receivedAmount) %></td>
-                <td><%= formatAmount(e.sentAmount) %></td>
-                <td>-</td>
+                <td>Sender Participant ID</td>
+                <td>Sender FSP ID</td>
+                <td>Receiver Participant ID</td>
+                <td>Receiver FSP ID</td>
+                <td>Transfer ID</td>
+                <td>Tx Type</td>
+                <td>Tx Nature</td>
+                <td>Last Modified</td>
+                <td>Sender ID Type</td>
+                <td>Sender ID</td>
+                <td>Receiver ID Type</td>
+                <td>Receiver ID</td>
+                <td>Received Amount</td>
+                <td>Sent Amount</td>
+                <td>Currency</td>
+                <td>Fee</td>
             </tr>
-        <% } %>
+            <% for(let e of report) { %>
+                <tr>
+                    <td><%= e.payerFspid %></td>
+                    <td><%= e.payerFspName %></td>
+                    <td><%= e.payeeFspid %></td>
+                    <td><%= e.payeeFspName %></td>
+                    <td><%= e.transferId %></td>
+                    <td><%= e.transactionType %></td>
+                    <td><%= e.transactionNature %></td>
+                    <td><%= e.lastModifiedDate.toISOString() %></td>
+                    <td><%= e.payerIdentifierType %></td>
+                    <td><%= e.payerIdentifierValue %></td>
+                    <td><%= e.payeeIdentifierType %></td>
+                    <td><%= e.payeeIdentifierValue %></td>
+                    <td><%= e.receivedAmount %></td>
+                    <td><%= e.sentAmount %></td>
+                    <td><%= e.currencyId %></td>
+                    <td>-</td>
+                </tr>
+            <% } %>
+            <div class="footer">
+                <p>Generated on: <%= (new Date()).toUTCString() %></p>
+            </div>
+    </div>
     </table>
     </body>
     </html>
-{{- end }}
