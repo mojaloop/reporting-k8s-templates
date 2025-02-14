@@ -292,7 +292,7 @@ spec:
                 margin: 5px 0;
             }
         </style>
-        <title>FSP Settlement Report 1</title>
+        <title>FSP Settlement Report</title>
     </head>
     <body>
 
@@ -347,6 +347,17 @@ spec:
             let payerIdentifierValue = 'N/A';
             let payeeIdentifierType = 'N/A';
             let payeeIdentifierValue = 'N/A';
+            let payerFspName = isPayer ? participantCurrency.name : otherParticipantCurrency.name
+            let payeeFspName = isPayer ? otherParticipantCurrency.name : participantCurrency.name
+
+            if (isFx) {
+              if (fxQuoteConversionTerms[movement.transferId].initiatingFsp === payerFspName) {
+                payeeFspName = payeeFspName + `(${fxQuoteConversionTerms[movement.transferId].counterPartyFsp})`;
+              }
+              if (fxQuoteConversionTerms[movement.transferId].counterPartyFsp === payerFspName) {
+                payeeFspName = payeeFspName + `(${fxQuoteConversionTerms[movement.transferId].initiatingFspId})`;
+              }
+            }
 
             if (!isFx) {
                 const quoteParty1 = quoteParties[movement.transferId][participantCurrency.name];
@@ -365,10 +376,10 @@ spec:
                 }
             }
             report.push({
-                payerFspid: isPayer ? participantCurrency.participantId : otherParticipantCurrency.participantId,
-                payerFspName: isPayer ? participantCurrency.name : otherParticipantCurrency.name,
-                payeeFspid: isPayer ? otherParticipantCurrency.participantId : participantCurrency.participantId,
-                payeeFspName: isPayer ? otherParticipantCurrency.name : participantCurrency.name,
+                payerFspId: isPayer ? participantCurrency.participantId : otherParticipantCurrency.participantId,
+                payerFspName: payerFspName,
+                payeeFspId: isPayer ? otherParticipantCurrency.participantId : participantCurrency.participantId,
+                payeeFspName: payeeFspName,
                 transferId: movement.transferId,
                 transactionType: transactionType,
                 transactionNature: transactionNature,
@@ -389,7 +400,7 @@ spec:
             <img src="" alt="Logo">
         </div>
         <div class="summary">
-            <p>Participant ID4: <%= dfspInfo[0]?.participantId %></p>
+            <p>Participant ID: <%= dfspInfo[0]?.participantId %></p>
             <p>FSP ID: <%= dfspInfo[0]?.name %></p>
             <p>Settlement ID: <%= getSettlement[0]?.settlementId %></p>
             <p>Created Date: <%= getSettlement[0]?.settlementCreatedDate.toISOString() %></p>
@@ -415,9 +426,9 @@ spec:
             </tr>
             <% for(let e of report) { %>
                 <tr>
-                    <td><%= e.payerFspid %></td>
+                    <td><%= e.payerFspId %></td>
                     <td><%= e.payerFspName %></td>
-                    <td><%= e.payeeFspid %></td>
+                    <td><%= e.payeeFspId %></td>
                     <td><%= e.payeeFspName %></td>
                     <td><%= e.transferId %></td>
                     <td><%= e.transactionType %></td>
