@@ -1,7 +1,10 @@
+{{- if .Values.templates.settlementAudit -}}
+
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: "settlement-audit"
+  name: {{ printf "%s-%s" .Release.Name "settlement-audit  " | trimPrefix "-" }}
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   permission: report-settlement-audit
   endpoint:
@@ -308,3 +311,4 @@ spec:
     </body>
 
     </html>
+{{- end }}

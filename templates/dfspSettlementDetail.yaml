@@ -1,7 +1,9 @@
+{{- if .Values.templates.dfspSettlementDetail -}}
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: "dfsp-settlement-detail"
+  name: {{ printf "%s-%s" .Release.Name "dfsp-settlement-detail" | trimPrefix "-" }}
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   permission: report-dfsp-settlement-detail
   endpoint:
@@ -451,3 +453,4 @@ spec:
     </table>
     </body>
     </html>
+{{- end }}
