@@ -282,21 +282,25 @@ spec:
             };
           }
 
-          const report = [];
-          for (let row of getPositionMovementsPerSettlementWindow) {
+            const reportGroupedByCurrency = {};
+            for (let row of getPositionMovementsPerSettlementWindow) {
             const currencyInfo = participantCurrencyMap[row.participantCurrencyId];
             const state = latestSettlementWindowStateMap[row.settlementWindowId];
-            report.push({
+            const reportEntry = {
               fspId: currencyInfo.name,
               settlementWindowId: row.settlementWindowId,
               state: state,
               currency: currencyInfo.currencyId,
               netPosition: row.netAmount,
               windowOpen: new Date(row.swOpenCreated)
-            });
-          }
-        %>
+            };
 
+            if (!reportGroupedByCurrency[currencyInfo.currencyId]) {
+              reportGroupedByCurrency[currencyInfo.currencyId] = [];
+            }
+            reportGroupedByCurrency[currencyInfo.currencyId].push(reportEntry);
+            }
+        %>
 
         <table cellpadding='0' cellspacing='0'>
               <tr>
@@ -307,16 +311,21 @@ spec:
                   <td>netPosition</td>
                   <td>windowOpen</td>
               </tr>
-              <% for(let e of report) { %>
+                <% for (const [currency, entries] of Object.entries(reportGroupedByCurrency)) { %>
                   <tr>
-                      <td><%= e.fspId %></td>
-                      <td><%= e.settlementWindowId %></td>
-                      <td><%= e.state %></td>
-                      <td><%= e.currency %></td>
-                      <td><%= e.netPosition %></td>
-                      <td><%= e.windowOpen.toISOString() %></td>
+                    <td colspan="6" class="thStyle"><%= currency %></td>
                   </tr>
-              <% } %>
+                  <% for (const entry of entries) { %>
+                  <tr>
+                    <td><%= entry.fspId %></td>
+                    <td><%= entry.settlementWindowId %></td>
+                    <td><%= entry.state %></td>
+                    <td><%= entry.currency %></td>
+                    <td><%= entry.netPosition %></td>
+                    <td><%= entry.windowOpen.toISOString() %></td>
+                  </tr>
+                  <% } %>
+                <% } %>
           </table>
           <div class="footer">
               <p>Generated on: <%= (new Date()).toUTCString() %></p>
@@ -324,4 +333,4 @@ spec:
         </div>
     </body>
     </html>
-
+{{- end }}
