@@ -1,10 +1,7 @@
-{{- if .Values.templates.transactionReconciliation -}}
-
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: {{ printf "%s-%s" .Release.Name "tx-reconciliation" | trimPrefix "-" }}
-  {{ include "common.annotations" . | nindent 2 }}
+  name: "tx-reconciliation"
 spec:
   permission: report-tx-reconciliation
   endpoint:
@@ -13,12 +10,8 @@ spec:
       - name: settlementWindowId
       - name: dfspId
         required: true
-      - name: startDate
-        required: true
-      - name: endDate
-        required: true
   queries:
-    - name: report
+    - name: legacyTransferReport
       query: |
         SELECT DISTINCT
           qt.quoteId AS quoteId,
@@ -112,13 +105,160 @@ spec:
           (payerPart.name = :dfspId OR payeePart.name = :dfspId)
         AND
           (xfrFul.settlementWindowId = :settlementWindowId OR :settlementWindowId IS NULL)
-        AND
-          qt.createdDate BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T')
+    - name: dfspInfo
+      query: |
+        SELECT participantId, name FROM participant WHERE name = :fspid AND name != 'Hub'
+    - name: getSettlement
+      query: |
+        SELECT
+          settlementId,
+          createdDate as settlementCreatedDate
+        FROM
+          settlement
+        WHERE
+          settlementId = :settlementId
+    - name: allParticipantCurrencyIds
+      query: >
+        SELECT
+          pc.participantCurrencyId,
+          pc.participantId,
+          pc.currencyId,
+          p.name,
+          p.description,
+          p.isProxy
+        FROM participantCurrency AS pc
+        INNER JOIN
+            participant AS p
+            ON pc.participantId = p.participantId
+        ORDER BY pc.participantCurrencyId;
+    - name: getFxPositionMovementsPerSettlementWindow
+      query: |
+        SELECT
+          result1.transferId as transferId,
+          result1.settlementWindowId as settlementWindowId,
+          result1.participantCurrencyId as participantCurrencyId,
+          SUM(result1.amount) as netAmount,
+          result1.swOpenCreated,
+          result1.swClosedCreated
+        FROM
+          (
+            SELECT
+              sw.settlementWindowId,
+              pc.participantCurrencyId,
+            swOpen.createdDate as swOpenCreated,
+            swClose.createdDate as swClosedCreated,
+              unioned.transferId,
+              unioned.uniqueLegId,
+              SUM(unioned.change) as amount
+            FROM
+              (
+                SELECT
+                  ppc.participantCurrencyId,
+                  ppc.change,
+                  fxtf.settlementWindowId,
+                  fxt1.determiningTransferId AS transferId,
+                  fxt1.commitRequestId AS uniqueLegId
+                FROM
+                  fxTransferFulfilment AS fxtf
+                  INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
+                  INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
+                  INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+                  INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+                  INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+              ) AS unioned
+              INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
+              INNER JOIN participant AS p ON p.participantId = pc.participantId
+              INNER JOIN settlementWindow as sw ON sw.settlementWindowId = unioned.settlementWindowId
+              INNER JOIN central_ledger.settlementWindowStateChange AS swOpen ON swOpen.settlementWindowId = unioned.settlementWindowId
+              LEFT OUTER JOIN central_ledger.settlementWindowStateChange AS swClose ON swClose.settlementWindowId = unioned.settlementWindowId
+              AND swClose.settlementWindowStateId = 'CLOSED'
+            WHERE
+              swOpen.settlementWindowStateId = 'OPEN'
+            GROUP BY
+              sw.settlementWindowId,
+              pc.participantCurrencyId,
+            swOpen.createdDate,
+            swClose.createdDate,
+              unioned.transferId,
+              unioned.uniqueLegId
+            ORDER BY
+              unioned.transferId
+          ) as result1
+        GROUP BY
+          result1.settlementWindowId,
+          result1.participantCurrencyId,
+          result1.swOpenCreated,
+          result1.swClosedCreated,
+          result1.transferId
+    - name: getFxQuoteConversionTerms
+      query: |
+        SELECT * FROM central_ledger.fxQuoteConversionTerms;
+
   template: |
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <style>
+            body {
+                font-family: 'Arial', sans-serif;
+                background-color: #f5f5f5;
+                margin: 0;
+                padding: 20px;
+                color: #333;
+            }
+
+            .container {
+                max-width: 100%;
+                margin: 0 auto;
+                background-color: #fff;
+                padding: 20px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+
+            .grid-container {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+            }
+
+            .grid-block {
+                padding: 2px;
+                border-radius: 8px;
+            }
+
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 2px solid #00447c;
+                padding-bottom: 10px;
+            }
+
+            .header h1 {
+                margin: 0;
+                color: #00447c;
+                font-size: 24px;
+            }
+
+            .header img {
+                max-height: 50px;
+            }
+
+            .summary {
+                margin-top: 20px;
+                padding: 15px;
+                background-color: #e9f3fa;
+                border-left: 6px solid #00447c;
+                border-radius: 5px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                max-width: 500px;
+            }
+
+            .summary p {
+                margin: 5px 0;
+                font-weight: bold;
+            }
+
             table {
                 font-family: arial, sans-serif;
                 border-collapse: collapse;
@@ -128,41 +268,218 @@ spec:
                 white-space: nowrap;
             }
 
+            table, th, td {
+                border: 1px solid #ddd;
+            }
+
             th {
-            //            border: 1px solid #efefef;
-                text-align: left;
-                padding: 0 8px;
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
             }
 
             td {
-    //            border: 1px solid #efefef;
-                padding: 8px;
+                line-height: 1.6;
+                padding: 10px;
+                text-align: left;
+                font-size: 0.9em;
             }
 
             tr:nth-child(even) {
-    //            background-color: #efefef;
+                background-color: #f2f2f2;
             }
 
-            td > span {
-                font-weight: bold;
+            .smallFont {
+                font-size: 0.7em;
+            }
+
+            .thStyle {
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
+            }
+
+            .button-link {
+                display: inline-block;
+                padding: 10px 20px;
+                font-size: 16px;
+                color: #fff;
+                background-color: #007bff;
+                text-decoration: none;
+                border-radius: 5px;
+                transition: background-color 0.3s, transform 0.2s;
+                font-weight: 500;
+                box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+            }
+
+            .button-link:hover {
+                background-color: #0056b3;
+                transform: translateY(-2px);
+                box-shadow: 0 6px 12px rgba(0, 86, 179, 0.3);
+            }
+
+            .button-link:active {
+                transform: translateY(0);
+                box-shadow: 0 4px 8px rgba(0, 86, 179, 0.2);
+            }
+
+            .highlight-link {
+                color: #007bff;
+                text-decoration: none;
+                padding: 3px 5px;
+                border-radius: 3px;
+                transition: background-color 0.2s, color 0.2s;
+            }
+
+            .highlight-link:hover {
+                background-color: #00447c;
+                color: white;
+            }
+
+            .footer {
+                margin-top: 20px;
+                text-align: center;
+                font-size: 0.9em;
+                color: #666;
+            }
+
+            .footer p {
+                margin: 5px 0;
             }
         </style>
         <title>FSP Settlement Report</title>
     </head>
     <body>
+      <%
+          const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
 
-    <%
-        const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
-    %>
+          const participantCurrencyMap = {};
+          for (let row of allParticipantCurrencyIds) {
+              participantCurrencyMap[row.participantCurrencyId] = {
+                  currencyId: row.currencyId,
+                  name: row.name,
+                  participantId: row.participantId
+              };
+          }
 
-    <table>
+          const fxQuoteConversionTerms = {};
+          for (let row of getFxQuoteConversionTerms) {
+              fxQuoteConversionTerms[row.determiningTransferId] = row;
+          }
+
+          const quoteParties = {};
+          for (let row of getQuoteParties) {
+              if (!quoteParties[row.transactionReferenceId]) {
+                  quoteParties[row.transactionReferenceId] = {};
+              }
+              quoteParties[row.transactionReferenceId][row.fspId] = row;
+          }
+
+          const report = [];
+          for (let movement of getPositionMovementsPerSettlementWindow) {
+              const participantCurrency = participantCurrencyMap[movement.participantCurrencyId];
+              const otherMovement = getPositionMovementsPerSettlementWindow.find(
+                  m => m.transferId === movement.transferId && m.participantCurrencyId !== movement.participantCurrencyId
+              );
+              const otherParticipantCurrency = participantCurrencyMap[otherMovement.participantCurrencyId];
+              if (participantCurrency.participantId !== dfspInfo[0]?.participantId && otherParticipantCurrency.participantId !== dfspInfo[0]?.participantId) {
+                  continue;
+              }
+              if (otherMovement) {
+                  const index = getPositionMovementsPerSettlementWindow.indexOf(otherMovement);
+                  if (index > -1) {
+                      getPositionMovementsPerSettlementWindow.splice(index, 1);
+                  }
+              }
+              const isPayer = movement.netAmount > 0;
+              const isSentOrReceived = isPayer && participantCurrency.name == dfspInfo[0]?.name;
+              const isFx = fxQuoteConversionTerms.hasOwnProperty(movement.transferId)
+              let transactionType = isFx ? 'Currency Conversion' : null;
+              let transactionNature = isFx ? 'Payer initiated' : null;
+
+              let payerIdentifierType = 'N/A';
+              let payerIdentifierValue = 'N/A';
+              let payeeIdentifierType = 'N/A';
+              let payeeIdentifierValue = 'N/A';
+              let payerFspName = isPayer ? participantCurrency.name : otherParticipantCurrency.name
+              let payeeFspName = isPayer ? otherParticipantCurrency.name : participantCurrency.name
+
+              if (isFx) {
+                if (fxQuoteConversionTerms[movement.transferId].initiatingFsp === payerFspName) {
+                  payeeFspName = payeeFspName + `(${fxQuoteConversionTerms[movement.transferId].counterPartyFsp})`;
+                }
+                if (fxQuoteConversionTerms[movement.transferId].counterPartyFsp === payerFspName) {
+                  payeeFspName = payeeFspName + `(${fxQuoteConversionTerms[movement.transferId].initiatingFspId})`;
+                }
+              }
+
+              if (!isFx) {
+                  const quoteParty1 = quoteParties[movement.transferId][participantCurrency.name];
+                  const quoteParty2 = quoteParties[movement.transferId][otherParticipantCurrency.name];
+                  if (quoteParty1) {
+                      transactionType = quoteParty1.transactionScenarioName;
+                      transactionNature = quoteParty1.transactionSubScenarioName || '-';
+                      payerIdentifierType = quoteParty1.partyIdentifierType;
+                      payerIdentifierValue = quoteParty1.partyIdentifierValue;
+                  }
+                  if(quoteParty2) {
+                      transactionType = quoteParty2.transactionScenarioName;
+                      transactionNature = quoteParty2.transactionSubScenarioName || '-';
+                      payeeIdentifierType = quoteParty2.partyIdentifierType;
+                      payeeIdentifierValue = quoteParty2.partyIdentifierValue;
+                  }
+              }
+              report.push({
+                  quoteId: 'N/A'
+                  senderDFSPId: isPayer ? participantCurrency.participantId : otherParticipantCurrency.participantId,
+                  senderDFSPName: payerFspName,
+                  receiverDFSPId: isPayer ? otherParticipantCurrency.participantId : participantCurrency.participantId,
+                  receiverDFSPName: payeeFspName,
+                  hubTxnID: movement.transferId,
+                  transactionType: transactionType,
+                  natureOfTxnType: transactionNature,
+                  requestDate: 'N/A',
+                  createdDate: 'N/A',
+                  settlementDate: 'N/A',
+                  senderCountryCurrencyCode: isPayer ? participantCurrency.currencyId : otherParticipantCurrency.currencyId,
+                  receiverCountryCurrencyCode: isPayer ? otherParticipantCurrency.currencyId : participantCurrency.currencyId,
+                  lastModifiedDate: new Date(movement.swClosedCreated || movement.swOpenCreated),
+                  //payerIdentifierType: payerIdentifierType,
+                  senderId: payerIdentifierValue,
+                  //payeeIdentifierType: payeeIdentifierType,
+                  receiverId: payeeIdentifierValue,
+                  reconciliationAmount: isSentOrReceived ? '-' : movement.netAmount,
+                  //sentAmount: isSentOrReceived ? movement.netAmount : '-',
+                  receiverNameStatus: 'N/A',
+                  pricingOption: 'N/A',
+                  receiverKYCLevelStatus: 'N/A',
+                  status: 'N/A',
+                  modificationDate: 'N/A',
+                  errorCode: 'N/A',
+                  senderDFSPTxnID: 'N/A',
+                  receiverDFSPTxnID: 'N/A',
+                  settlementWindowId: movement.settlementWindowId,
+                  settlementState: 'N/A',
+                  settlementStateChangeDate: 'N/A'
+              });
+          }
+          legacyTransferReport.push(...report);
+      %>
+      <div class="container">
+        <div class="header">
+            <h1>FSP Settlement Report 1</h1>
+            <img src="" alt="Logo">
+        </div>
+        <table>
             <tr>
-                <% for(let k of Object.keys(report[0] || {})) { %>
+                <% for(let k of Object.keys(legacyTransferReport[0] || {})) { %>
                   <td><%= k %></td>
                 <% } %>
             </tr>
 
-            <% for(let r of report) { %>
+            <% for(let r of legacyTransferReport) { %>
             <tr>
               <% for(let k of Object.keys(r)) { %>
 
@@ -170,9 +487,10 @@ spec:
               <% } %>
             </tr>
             <% } %>
-
         </table>
+        <div class="footer">
+            <p>Generated on: <%= (new Date()).toUTCString() %></p>
+        </div>
+      </div>
     </body>
     </html>
-
-{{- end }}
