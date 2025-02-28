@@ -459,7 +459,7 @@ spec:
                         <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
                         <td><%= sd.payeeParticipantCurrencyDetails.currencyId %></td>
                         <td><%= sd.totalAmountSent %></td>
-                        <td><%= sd.totalReverseAmount >= 0 ? `${sd.totalReverseAmount}` : `(${sd.totalReverseAmount})` %></td>
+                        <td><%= sd.totalReverseAmount >= 0 ? `${sd.totalReverseAmount}` : `(${-sd.totalReverseAmount})` %></td>
                         <td><%= sd.netSettlementAmount %></td>
                       </tr>
                       <% } %>
