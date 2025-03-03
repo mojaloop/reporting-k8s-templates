@@ -424,9 +424,12 @@ spec:
       });
 
       const settlementInfo = settlementInfoResult[0];
-
+      const dataForJson = {
+        settlementInfo,
+        calculatedSettlementRowsWithDetails
+      }
     %>
-    <body>
+    <body data-json="<%= JSON.stringify(dataForJson) %>" >
         <div class="container">
             <div class="header">
                 <h1>DRPP Bilateral Settlement Report</h1>

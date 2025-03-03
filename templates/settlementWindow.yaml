@@ -263,7 +263,7 @@ spec:
         </style>
     </head>
     <body>
-      <div class="container">
+      <div class="container" >
         <div class="header">
             <h1>FSP Settlement Report</h1>
             <img src="" alt="Logo">
@@ -302,7 +302,7 @@ spec:
             }
         %>
 
-        <table cellpadding='0' cellspacing='0'>
+        <table cellpadding='0' cellspacing='0' data-json="<%= JSON.stringify(reportGroupedByCurrency) %>">
               <tr>
                   <td>fspId</td>
                   <td>settlementWindowId</td>

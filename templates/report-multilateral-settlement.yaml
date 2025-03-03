@@ -18,7 +18,7 @@ spec:
         SELECT
             s.settlementId,
             s.createdDate,
-            ssc.settlementStateId as currenctState,
+            ssc.settlementStateId as currentState,
             ssc.createdDate as lastStateUpdate,
             sSW.createdDate as windowCreatedDate,
             sSW.settlementWindowId,
@@ -309,9 +309,12 @@ spec:
       }, {});
 
       const settlementInfo = settlementInfoResult[0];
-
+      const dataForJson = {
+        settlementInfo,
+        groupedByCurrencyId
+      };
     %>
-    <body>
+    <body data-json="<%= JSON.stringify(dataForJson) %>" >
         <div class="container">
             <div class="header">
                 <h1>Multilateral Settlement Report</h1>
@@ -320,7 +323,7 @@ spec:
 
             <div class="summary">
                 <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
-                <p>State: <%= settlementInfo?.currenctState %></p>
+                <p>State: <%= settlementInfo?.currentState %></p>
                 <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>
                 <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate.toISOString() %></p>
                 <p>Created Date: <%= settlementInfo?.createdDate.toISOString() %></p>
