@@ -395,8 +395,13 @@ spec:
                 currencyId: participantCurrency.currencyId
             });
         }
+        const dataForJson = {
+            dfspInfo,
+            settlement: getSettlement,
+            report
+        };
     %>
-    <div class="container">
+    <div class="container" data-json="<%= JSON.stringify(dataForJson) %>" >
         <div class="header">
             <h1>DFSP Settlement Detail</h1>
             <img src="" alt="Logo">
