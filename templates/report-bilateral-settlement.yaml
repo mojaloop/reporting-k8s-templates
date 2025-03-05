@@ -429,10 +429,11 @@ spec:
         calculatedSettlementRowsWithDetails
       }
     %>
+
     <body data-json="<%= JSON.stringify(dataForJson) %>" >
         <div class="container">
             <div class="header">
-                <h1>DRPP Bilateral Settlement Report</h1>
+                <h1>DRPP Bilateral Net Settlement Report</h1>
                 <img src="" alt="Logo">
             </div>
 
@@ -452,7 +453,7 @@ spec:
                         <th>Net Creditor</th>
                         <th>Currency</th>
                         <th>Total Sent Amount</th>
-                        <th>Total Reverse Amount</th>
+                        <th>Total Received Amount</th>
                         <th>Net Settlement Amount</th>
                       </tr>
                       <% for(let sd of calculatedSettlementRowsWithDetails) { %>
@@ -461,7 +462,7 @@ spec:
                         <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
                         <td><%= sd.payeeParticipantCurrencyDetails.currencyId %></td>
                         <td><%= sd.totalAmountSent %></td>
-                        <td><%= sd.totalReverseAmount %></td>
+                        <td><%= sd.totalReverseAmount >= 0 ? `${sd.totalReverseAmount}` : `(${-sd.totalReverseAmount})` %></td>
                         <td><%= sd.netSettlementAmount %></td>
                       </tr>
                       <% } %>
