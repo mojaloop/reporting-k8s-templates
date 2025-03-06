@@ -455,7 +455,7 @@ spec:
                 <p>Generated on: <%= (new Date()).toUTCString() %></p>
             </div>
         </table>
-      </div>
+    </div>
     </body>
     </html>
 {{- end }}
