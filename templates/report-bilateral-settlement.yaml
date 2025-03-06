@@ -18,7 +18,7 @@ spec:
         SELECT
             s.settlementId,
             s.createdDate,
-            ssc.settlementStateId as currenctState,
+            ssc.settlementStateId as currentState,
             ssc.createdDate as lastStateUpdate,
             sSW.createdDate as windowCreatedDate,
             sSW.settlementWindowId,
@@ -439,7 +439,7 @@ spec:
 
             <div class="summary">
                 <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
-                <p>State: <%= settlementInfo?.currenctState %></p>
+                <p>State: <%= settlementInfo?.currentState %></p>
                 <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>
                 <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate.toISOString() %></p>
                 <p>Created Date: <%= settlementInfo?.createdDate.toISOString() %></p>
@@ -448,24 +448,25 @@ spec:
 
                   <table cellpadding='0' cellspacing='0'>
                       <tbody>
-                      <tr>
-                        <th>Net Debtor</th>
-                        <th>Net Creditor</th>
-                        <th>Currency</th>
-                        <th>Total Sent Amount</th>
-                        <th>Total Received Amount</th>
-                        <th>Net Settlement Amount</th>
-                      </tr>
-                      <% for(let sd of calculatedSettlementRowsWithDetails) { %>
-                      <tr>
-                        <td><%= sd.payerParticipantCurrencyDetails.name %></td>
-                        <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
-                        <td><%= sd.payeeParticipantCurrencyDetails.currencyId %></td>
-                        <td><%= sd.totalAmountSent %></td>
-                        <td><%= sd.totalReverseAmount >= 0 ? `${sd.totalReverseAmount}` : `(${-sd.totalReverseAmount})` %></td>
-                        <td><%= sd.netSettlementAmount %></td>
-                      </tr>
-                      <% } %>
+                        <tr>
+                            <th>Net Debtor</th>
+                            <th>Net Creditor</th>
+                            <th>Currency</th>
+                            <th>Total Sent Amount</th>
+                            <th>Total Received Amount</th>
+                            <th>Net Settlement Amount</th>
+                        </tr>
+                        <% for(let sd of calculatedSettlementRowsWithDetails) { %>
+                        <tr>
+                            <td><%= sd.payerParticipantCurrencyDetails.name %></td>
+                            <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
+                            <td><%= sd.payeeParticipantCurrencyDetails.currencyId %></td>
+                            <td><%= sd.totalAmountSent %></td>
+                            <td><%= sd.totalReverseAmount >= 0 ? `${sd.totalReverseAmount}` : `(${-sd.totalReverseAmount})` %></td>
+                            <td><%= sd.netSettlementAmount %></td>
+                        </tr>
+                        <% } %>
+                      </tbody>
                   </table>
             <!--<div class="grid-container">
                 <div class="grid-block">
