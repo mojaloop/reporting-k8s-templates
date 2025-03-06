@@ -287,37 +287,36 @@ spec:
             }
         </style>
     </head>
+    <body >
+        <%
+        const outputSettlementRowsWithDetails = settlementParticipantCurrencyIdsResult.map((settlementRow) => {
+            const participantCurrencyId = settlementRow.participantCurrencyId;
+            const participantCurrencyDetails = allParticipantCurrencyIds.find((participantCurrencyId) => participantCurrencyId.participantCurrencyId === settlementRow.participantCurrencyId);
+            return {
+            ...settlementRow,
+            netAmountDisplay: settlementRow.netAmount <= 0 ? Math.abs(settlementRow.netAmount) : `(${settlementRow.netAmount})`,
+            participantCurrencyDetails
+            };
+        });
 
-    <%
-      const outputSettlementRowsWithDetails = settlementParticipantCurrencyIdsResult.map((settlementRow) => {
-        const participantCurrencyId = settlementRow.participantCurrencyId;
-        const participantCurrencyDetails = allParticipantCurrencyIds.find((participantCurrencyId) => participantCurrencyId.participantCurrencyId === settlementRow.participantCurrencyId);
-        return {
-          ...settlementRow,
-          netAmountDisplay: settlementRow.netAmount <= 0 ? Math.abs(settlementRow.netAmount) : `(${settlementRow.netAmount})`,
-          participantCurrencyDetails
+        const groupedByCurrencyId = outputSettlementRowsWithDetails.reduce((acc, record) => {
+            const currencyId = record.participantCurrencyDetails.currencyId;
+            if (!acc[currencyId]) {
+                acc[currencyId] = [];
+            }
+            acc[currencyId].push(record);
+            return acc;
+        }, {});
+
+        const settlementInfo = settlementInfoResult[0];
+        const dataForJson = {
+            settlementInfo,
+            groupedByCurrencyId
         };
-      });
-
-      const groupedByCurrencyId = outputSettlementRowsWithDetails.reduce((acc, record) => {
-        const currencyId = record.participantCurrencyDetails.currencyId;
-        if (!acc[currencyId]) {
-            acc[currencyId] = [];
-        }
-        acc[currencyId].push(record);
-        return acc;
-      }, {});
-
-      const settlementInfo = settlementInfoResult[0];
-      const dataForJson = {
-        settlementInfo,
-        groupedByCurrencyId
-      };
-    %>
-    <body data-json="<%= JSON.stringify(dataForJson) %>" >
+        %>
         <div class="container">
             <div class="header">
-                <h1>Multilateral Settlement Report</h1>
+                <h1>Multilateral Settlement Report 1</h1>
                 <img src="" alt="Logo">
             </div>
 
@@ -330,33 +329,31 @@ spec:
                 <p>Last State Update: <%= settlementInfo?.lastStateUpdate.toISOString() %></p>
             </div>
 
-                  <table cellpadding='0' cellspacing='0'>
-                      <tbody>
-                      <tr>
+            <table cellpadding='0' cellspacing='0' data-json="<%= JSON.stringify(dataForJson) %>">
+                <tbody>
+                    <tr>
                         <th>Participant</th>
                         <th>Currency</th>
                         <th>Net Settlement Amount</th>
-                      </tr>
-                      <% for (let currencyId in groupedByCurrencyId) { %>
-                      <tr>
-                        <td class='thGroupBy' colspan='100%'><%= currencyId %></td>
-                      </tr>
-                      <% for(let sd of groupedByCurrencyId[currencyId]) { %>
-                      <tr>
-                        <td><%= sd.participantCurrencyDetails.name %></td>
-                        <td><%= sd.participantCurrencyDetails.currencyId %></td>
-                        <td><%= sd.netAmountDisplay %></td>
-                      </tr>
-                      <% } %>
-                      <tr>
+                    </tr>
+                    <% for (let currencyId in groupedByCurrencyId) { %>
+                        <tr>
+                            <td class='thGroupBy' colspan='100%'><%= currencyId %></td>
+                        </tr>
+                    <% for(let sd of groupedByCurrencyId[currencyId]) { %>
+                        <tr>
+                            <td><%= sd.participantCurrencyDetails.name %></td>
+                            <td><%= sd.participantCurrencyDetails.currencyId %></td>
+                            <td><%= sd.netAmountDisplay %></td>
+                        </tr>
+                    <% } %>
+                        <tr>
                         <td class='thSeparator' colspan='100%'></td>
-                      </tr>
-                      <% } %>
-                  </table>
-            <!--<div class="grid-container">
-                <div class="grid-block">
-                </div>
-            </div>-->
+                        </tr>
+                    <% } %>
+                </tbody>
+            </table>
+
 
             <div class="footer">
                 <p><i>NOTE: In the report, amounts enclosed in parentheses represent negative balances, indicating a payable obligation of the participant to the switch.</i></p>
