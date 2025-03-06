@@ -454,8 +454,8 @@ spec:
             <div class="footer">
                 <p>Generated on: <%= (new Date()).toUTCString() %></p>
             </div>
-    </div>
-    </table>
+        </table>
+      </div>
     </body>
     </html>
 {{- end }}
