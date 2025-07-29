@@ -35,147 +35,145 @@ spec:
     - name: settlementParticipantCurrencyIdsResult
       query: >
         SELECT
-          result1.transferId,
-          result1.uniqueLegId,
-          result1.participantCurrencyId as debtorParticipantCurrencyId,
-          result2.participantCurrencyId as creditorParticipantCurrencyId,
-          SUM(result1.amount) as debtorTotalAmount,
-          SUM(result2.amount) as creditorTotalAmount
+            result1.participantCurrencyId as debtorParticipantCurrencyId,
+            result2.participantCurrencyId as creditorParticipantCurrencyId,
+            SUM(result1.amount) as debtorTotalAmount,
+            SUM(result2.amount) as creditorTotalAmount
         FROM
 
         (SELECT
-          pc.participantCurrencyId,
-          unioned.transferId,
-          unioned.uniqueLegId,
-          SUM(unioned.change) as amount
+            pc.participantCurrencyId,
+            unioned.transferId,
+            unioned.uniqueLegId,
+            SUM(unioned.change) as amount
         FROM (
-          SELECT
-            ppc.participantCurrencyId,
-            ppc.change,
-            tf.settlementWindowId,
-            tf.transferId AS transferId,
-            tf.transferId AS uniqueLegId
-          FROM
-            transferFulfilment AS tf
-          INNER JOIN
-            transferStateChange AS tsc
-            ON tsc.transferId = tf.transferId
-          INNER JOIN
-            participantPositionChange AS ppc
-            ON ppc.transferStateChangeId = tsc.transferStateChangeId
-          INNER JOIN
-            settlementParticipantCurrency AS spc
-            ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-          INNER JOIN
-            settlementSettlementWindow ssw
-            ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
+                tf.settlementWindowId,
+                tf.transferId AS transferId,
+                tf.transferId AS uniqueLegId
+            FROM
+                transferFulfilment AS tf
+            INNER JOIN
+                transferStateChange AS tsc
+                ON tsc.transferId = tf.transferId
+            INNER JOIN
+                participantPositionChange AS ppc
+                ON ppc.transferStateChangeId = tsc.transferStateChangeId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
 
-          UNION ALL
+            UNION ALL
 
-          SELECT
-            ppc.participantCurrencyId,
-            ppc.change,
-            fxtf.settlementWindowId,
-            fxt1.determiningTransferId AS transferId,
-            fxt1.commitRequestId AS uniqueLegId
-          FROM
-            fxTransferFulfilment AS fxtf
-          INNER JOIN
-            fxTransfer AS fxt1
-            ON fxt1.commitRequestId = fxtf.commitRequestId
-          INNER JOIN
-            fxTransferStateChange AS fxtsc
-            ON fxtsc.commitRequestId = fxtf.commitRequestId
-          INNER JOIN
-            participantPositionChange AS ppc
-            ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-          INNER JOIN
-            settlementParticipantCurrency AS spc
-            ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-          INNER JOIN
-            settlementSettlementWindow ssw
-            ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
+                fxtf.settlementWindowId,
+                fxt1.determiningTransferId AS transferId,
+                fxt1.commitRequestId AS uniqueLegId
+            FROM
+                fxTransferFulfilment AS fxtf
+            INNER JOIN
+                fxTransfer AS fxt1
+                ON fxt1.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+                fxTransferStateChange AS fxtsc
+                ON fxtsc.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+                participantPositionChange AS ppc
+                ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
         ) AS unioned
         INNER JOIN
-          participantCurrency AS pc
-          ON pc.participantCurrencyId = unioned.participantCurrencyId
+            participantCurrency AS pc
+            ON pc.participantCurrencyId = unioned.participantCurrencyId
         WHERE unioned.change > 0
         GROUP BY
-          unioned.transferId,
-          unioned.uniqueLegId,
-          pc.participantCurrencyId
+            pc.participantCurrencyId,
+            unioned.transferId,
+            unioned.uniqueLegId
         ORDER BY unioned.transferId
         ) as result1
 
         INNER JOIN
 
         (SELECT
-          pc.participantCurrencyId,
-          unioned.transferId,
-          unioned.uniqueLegId,
-          SUM(unioned.change) as amount
+            pc.participantCurrencyId,
+            unioned.transferId,
+            unioned.uniqueLegId,
+            SUM(unioned.change) as amount
         FROM (
-          SELECT
-            ppc.participantCurrencyId,
-            ppc.change,
-            tf.settlementWindowId,
-            tf.transferId AS transferId,
-            tf.transferId AS uniqueLegId
-          FROM
-            transferFulfilment AS tf
-          INNER JOIN
-            transferStateChange AS tsc
-            ON tsc.transferId = tf.transferId
-          INNER JOIN
-            participantPositionChange AS ppc
-            ON ppc.transferStateChangeId = tsc.transferStateChangeId
-          INNER JOIN
-            settlementParticipantCurrency AS spc
-            ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-          INNER JOIN
-            settlementSettlementWindow ssw
-            ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
+                tf.settlementWindowId,
+                tf.transferId AS transferId,
+                tf.transferId AS uniqueLegId
+            FROM
+                transferFulfilment AS tf
+            INNER JOIN
+                transferStateChange AS tsc
+                ON tsc.transferId = tf.transferId
+            INNER JOIN
+                participantPositionChange AS ppc
+                ON ppc.transferStateChangeId = tsc.transferStateChangeId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
 
-          UNION ALL
+            UNION ALL
 
-          SELECT
-            ppc.participantCurrencyId,
-            ppc.change,
-            fxtf.settlementWindowId,
-            fxt1.determiningTransferId AS transferId,
-            fxt1.commitRequestId AS uniqueLegId
-          FROM
-            fxTransferFulfilment AS fxtf
-          INNER JOIN
-            fxTransfer AS fxt1
-            ON fxt1.commitRequestId = fxtf.commitRequestId
-          INNER JOIN
-            fxTransferStateChange AS fxtsc
-            ON fxtsc.commitRequestId = fxtf.commitRequestId
-          INNER JOIN
-            participantPositionChange AS ppc
-            ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-          INNER JOIN
-            settlementParticipantCurrency AS spc
-            ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-          INNER JOIN
-            settlementSettlementWindow ssw
-            ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            SELECT
+                ppc.participantCurrencyId,
+                ppc.change,
+                fxtf.settlementWindowId,
+                fxt1.determiningTransferId AS transferId,
+                fxt1.commitRequestId AS uniqueLegId
+            FROM
+                fxTransferFulfilment AS fxtf
+            INNER JOIN
+                fxTransfer AS fxt1
+                ON fxt1.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+                fxTransferStateChange AS fxtsc
+                ON fxtsc.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+                participantPositionChange AS ppc
+                ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
         ) AS unioned
         INNER JOIN
-          participantCurrency AS pc
-          ON pc.participantCurrencyId = unioned.participantCurrencyId
+            participantCurrency AS pc
+            ON pc.participantCurrencyId = unioned.participantCurrencyId
         WHERE unioned.change < 0
         GROUP BY
-          unioned.transferId,
-          unioned.uniqueLegId,
-          pc.participantCurrencyId
+            pc.participantCurrencyId,
+            unioned.transferId,
+            unioned.uniqueLegId
         ORDER BY unioned.transferId
         ) as result2
 
         ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
 
-        GROUP BY result1.transferId, result1.uniqueLegId, result1.participantCurrencyId, result2.participantCurrencyId;
+        GROUP BY result1.participantCurrencyId, result2.participantCurrencyId;
     - name: allParticipantCurrencyIds
       query: >
         SELECT
@@ -211,8 +209,7 @@ spec:
           qp.participantId,
           qp.fspId,
           q.transactionReferenceId AS transferId,
-          qp.amount,
-          at.name AS amountType
+          qp.amount
         FROM quoteParty qp
         INNER JOIN quote q ON qp.quoteId = q.quoteId
         LEFT JOIN amountType at ON q.amountTypeId = at.amountTypeId
@@ -238,14 +235,13 @@ spec:
         WHERE ssw.settlementId = :settlementId;
     - name: conversionFspsByDeterminingTransferId
       query: >
-      SELECT
-        fqt.determiningTransferId AS transferId,
-        fqt.initiatingFsp AS initiatingFspId,
-        fqt.counterPartyFsp AS counterPartyFspId,
-        at.name AS amountType
-      FROM fxQuoteConversionTerms fqt
-      INNER JOIN amountType at ON fqt.amountTypeId = at.amountTypeId
-      WHERE fqt.determiningTransferId IS NOT NULL;
+        SELECT
+          fqt.determiningTransferId AS transferId,
+          fqt.initiatingFsp AS initiatingFspId,
+          fqt.counterPartyFsp AS counterPartyFspId
+        FROM fxQuoteConversionTerms fqt
+        INNER JOIN amountType at ON fqt.amountTypeId = at.amountTypeId
+        WHERE fqt.determiningTransferId IS NOT NULL;
   template: |
     <!DOCTYPE html>
     <html lang="en">
@@ -491,6 +487,7 @@ spec:
       <th>Net Creditor</th>
       <th>Currency</th>
       <th>Total Sent Amount</th>
+      <th>Total Received Amount</th>
       <th>Net Settlement Amount</th>
       <th>Currency</th>
       </tr>
@@ -498,12 +495,13 @@ spec:
       <tbody>
       <%
       // Helper to format numbers with commas and 2 decimals
-      function fmt(n) {
+      function fmt(n, opts) {
       if (n === undefined || n === null || isNaN(n)) return '';
       const num = Number(n);
-      return num < 0
-      ? `(${Math.abs(num).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})})`
-      : num.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+      const abs = Math.abs(num).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+      if (opts && opts.forceParens) return `(${abs})`;
+      if (opts && opts.parensIfNegative && num < 0) return `(${abs})`;
+      return num < 0 ? `(${abs})` : abs;
       }
       // Helper to get name or fallback
       function pcName(pc) { return pc ? pc.name : ''; }
@@ -511,100 +509,217 @@ spec:
       function pcCurrency(pc) { return pc ? pc.currencyId : ''; }
       // Helper to get external participant name
       function extName(ext, fallback) { return ext ? ext.externalParticipantName : (fallback || ''); }
+      function isProxy(pc) { return !!pc && !!pc.isProxy; }
+
+      // --- NEW: Show every FSP-to-FSP movement for main rows (do not net out reverse) ---
+      // But: If net creditor has position movements to net debtor, put that movement in total received amount of the main row (not as a new row).
+      // Also: Prioritize showing non-proxy FSPs as net debtor first.
+
+      // Build a map for quick lookup of participantCurrencyId -> participantCurrency object
+      const pcMap = {};
+      for (const pc of allParticipantCurrencyIds) {
+      pcMap[pc.participantCurrencyId] = pc;
+      }
+
+      // Build a map of all movements: [debtor, creditor] -> {sent, received}
+      const movementPairs = {};
+      for (const txn of settlementParticipantCurrencyIdsResult) {
+      const key = txn.debtorParticipantCurrencyId + '_' + txn.creditorParticipantCurrencyId;
+      if (!movementPairs[key]) {
+      movementPairs[key] = {
+      debtor: txn.debtorParticipantCurrencyId,
+      creditor: txn.creditorParticipantCurrencyId,
+      sent: 0,
+      received: 0
+      };
+      }
+      movementPairs[key].sent += Number(txn.debtorTotalAmount);
+      movementPairs[key].received += Number(txn.creditorTotalAmount);
+      }
+
+      // Now, for each unique [debtor, creditor], if there is a reverse [creditor, debtor], add its sent to received and do not show the reverse as a main row
+      const shownKeys = new Set();
+      const mainRows = [];
+
+      // Helper: sort so non-proxy debtors come first
+      function sortMainRows(a, b) {
+      const aDebtorIsProxy = isProxy(pcMap[a.debtor]);
+      const bDebtorIsProxy = isProxy(pcMap[b.debtor]);
+      if (aDebtorIsProxy === bDebtorIsProxy) return 0;
+      return aDebtorIsProxy ? 1 : -1;
+      }
+
+      for (const key in movementPairs) {
+      if (shownKeys.has(key)) continue;
+      const { debtor, creditor, sent } = movementPairs[key];
+      const reverseKey = creditor + '_' + debtor;
+      let totalSent = sent;
+      let totalReceived = 0;
+
+      // If reverse exists, add its sent to received and mark reverse as shown
+      if (movementPairs[reverseKey]) {
+      totalReceived += movementPairs[reverseKey].sent;
+      shownKeys.add(reverseKey);
+      }
+      shownKeys.add(key);
+
+      // Net settlement is total sent - abs(total received)
+      let netSettlement = totalSent - Math.abs(totalReceived);
+
+      mainRows.push({
+      debtor,
+      creditor,
+      totalSent,
+      totalReceived,
+      netSettlement
+      });
+      }
+
+      // Sort so non-proxy debtors come first
+      mainRows.sort(sortMainRows);
 
       // For sub-rows: group by underlying creditor/debtor FSPs using quoteParty and its amount
-      // But for totals, use the actual settlementParticipantCurrencyIdsResult amounts
+      // When the sub row debtor->creditor has position movements in the opposite direction,
+      // put that movement in the received amount sub row rather than showing the opposite direction sub row.
+      // Total received amount should only reflect reverse direction movements, not affected by sent amount.
+      // If no reverse movement, total received is 0.
       function sumUnderlyingFspMovements(mainRow) {
-      // Only consider transfers where the main row's debtor is the proxy
-      const proxyDebtorId = mainRow.payerParticipantCurrencyDetails?.participantId;
-      const proxyCreditorId = mainRow.payeeParticipantCurrencyDetails?.participantId;
-      // Find all transfers for this main row
+      // Find all transfers for this main row (debtor->creditor)
       const transfers = settlementParticipantCurrencyIdsResult.filter(txn =>
-      txn.debtorParticipantCurrencyId === mainRow.netDebtor &&
-      txn.creditorParticipantCurrencyId === mainRow.netCreditor
+        txn.debtorParticipantCurrencyId === mainRow.debtor &&
+        txn.creditorParticipantCurrencyId === mainRow.creditor
+      );
+      // Find all transfers for reverse (creditor->debtor)
+      const reverseTransfers = settlementParticipantCurrencyIdsResult.filter(txn =>
+        txn.debtorParticipantCurrencyId === mainRow.creditor &&
+        txn.creditorParticipantCurrencyId === mainRow.debtor
       );
       // For each transfer, get quoteParties and amounts
       const movementMap = {};
+      // Normal direction: build sub-rows for each unique FSP pair
       for (const txn of transfers) {
-      const qps = quotePartiesByTransferIdMap[txn.transferId] || [];
-      // Find all unique underlying creditor/debtor pairs using quoteParty and their amounts
-      // But for totals, use txn.debtorTotalAmount and txn.creditorTotalAmount
-      // Find the underlying creditor and debtor FSPs for this transfer
-      // For each transfer, find the positive and negative quoteParty (amount)
-      let qpDebtor = null, qpCreditor = null;
-      for (const qp of qps) {
+        const qps = quotePartiesByTransferIdMap[txn.transferId] || [];
+        let qpDebtor = null, qpCreditor = null;
+        for (const qp of qps) {
       if (Number(qp.amount) > 0) qpDebtor = qp;
       if (Number(qp.amount) < 0) qpCreditor = qp;
-      }
-      // Default to using the quoteParty FSP IDs
-      let debtorFspId = qpDebtor ? qpDebtor.fspId : undefined;
-      let creditorFspId = qpCreditor ? qpCreditor.fspId : undefined;
+        }
+        let debtorFspId = qpDebtor ? qpDebtor.fspId : undefined;
+        let creditorFspId = qpCreditor ? qpCreditor.fspId : undefined;
 
-      // If this transferId is in conversionFspsByTransferIdMap, check if main fspid is a counterparty or initiatingfsp
-      const conv = conversionFspsByTransferIdMap[txn.transferId];
-      if (conv) {
-      // If mainRow's netDebtor or netCreditor FSP ID matches counterPartyFspId or initiatingFspId, do not replace subrow fspid by looking at quoteParties
-      // Use participantCurrencyId to get the FSP name
-      const mainDebtorPc = allParticipantCurrencyIds.find(pc => pc.participantCurrencyId === mainRow.netDebtor);
-      const mainCreditorPc = allParticipantCurrencyIds.find(pc => pc.participantCurrencyId === mainRow.netCreditor);
+        // If this transferId is in conversionFspsByTransferIdMap, check if main fspid is a counterparty or initiatingfsp
+        const conv = conversionFspsByTransferIdMap[txn.transferId];
+        if (conv) {
+      const mainDebtorPc = pcMap[mainRow.debtor];
+      const mainCreditorPc = pcMap[mainRow.creditor];
       const mainDebtorFspId = mainDebtorPc ? mainDebtorPc.name : undefined;
       const mainCreditorFspId = mainCreditorPc ? mainCreditorPc.name : undefined;
-
-      // If mainDebtorFspId matches either, do not update debtorFspId
       if (mainDebtorFspId === conv.counterPartyFspId || mainDebtorFspId === conv.initiatingFspId) {
         debtorFspId = mainDebtorFspId;
       }
-      // If mainCreditorFspId matches either, do not update creditorFspId
       if (mainCreditorFspId === conv.counterPartyFspId || mainCreditorFspId === conv.initiatingFspId) {
         creditorFspId = mainCreditorFspId;
       }
-      }
+        }
 
-      const key = (debtorFspId || '') + '_' + (creditorFspId || '');
-      if (!movementMap[key]) {
+        const key = (debtorFspId || '') + '_' + (creditorFspId || '');
+        if (!movementMap[key]) {
       movementMap[key] = {
         debtorFspId: debtorFspId,
         creditorFspId: creditorFspId,
-        currency: pcCurrency(mainRow.payerParticipantCurrencyDetails) || pcCurrency(mainRow.payeeParticipantCurrencyDetails) || '',
+        currency: pcCurrency(pcMap[mainRow.debtor]) || pcCurrency(pcMap[mainRow.creditor]) || '',
         totalSent: 0,
-        totalReceived: 0,
+        totalReceived: 0, // will be filled in reverse loop if any
         netSettlement: 0
       };
+        }
+        movementMap[key].totalSent += Number(txn.debtorTotalAmount);
       }
-      // Use the actual settlementParticipantCurrencyIdsResult amounts for totals
-      movementMap[key].totalSent += Number(txn.debtorTotalAmount);
-      movementMap[key].totalReceived += Number(txn.creditorTotalAmount);
-      movementMap[key].netSettlement += Number(txn.debtorTotalAmount) + Number(txn.creditorTotalAmount);
+      // Reverse direction: add to totalReceived of the matching sub-row, not as a new sub-row
+      for (const txn of reverseTransfers) {
+        const qps = quotePartiesByTransferIdMap[txn.transferId] || [];
+        let qpDebtor = null, qpCreditor = null;
+        for (const qp of qps) {
+      if (Number(qp.amount) > 0) qpDebtor = qp;
+      if (Number(qp.amount) < 0) qpCreditor = qp;
+        }
+        let debtorFspId = qpDebtor ? qpDebtor.fspId : undefined;
+        let creditorFspId = qpCreditor ? qpCreditor.fspId : undefined;
+
+        // If this transferId is in conversionFspsByTransferIdMap, check if main fspid is a counterparty or initiatingfsp
+        const conv = conversionFspsByTransferIdMap[txn.transferId];
+        if (conv) {
+      const mainDebtorPc = pcMap[mainRow.debtor];
+      const mainCreditorPc = pcMap[mainRow.creditor];
+      const mainDebtorFspId = mainDebtorPc ? mainDebtorPc.name : undefined;
+      const mainCreditorFspId = mainCreditorPc ? mainCreditorPc.name : undefined;
+      if (mainDebtorFspId === conv.counterPartyFspId || mainDebtorFspId === conv.initiatingFspId) {
+        debtorFspId = mainDebtorFspId;
+      }
+      if (mainCreditorFspId === conv.counterPartyFspId || mainCreditorFspId === conv.initiatingFspId) {
+        creditorFspId = mainCreditorFspId;
+      }
+        }
+
+        // Try to find a matching sub-row in the normal direction (debtorFspId/creditorFspId swapped)
+        const matchKey = (creditorFspId || '') + '_' + (debtorFspId || '');
+        if (movementMap[matchKey]) {
+      movementMap[matchKey].totalReceived += Number(txn.debtorTotalAmount);
+        }
+        // If not found, do not create a new sub-row; received remains 0 for unmatched
+      }
+      // Now calculate netSettlement for each sub-row as totalSent - abs(totalReceived)
+      for (const k in movementMap) {
+        movementMap[k].netSettlement = movementMap[k].totalSent - Math.abs(movementMap[k].totalReceived);
       }
       // Convert to array and enrich with names
       return Object.values(movementMap).map(sub => {
-      // Find participant details by FSP ID
-      const debtorPc = allParticipantCurrencyIds.find(pc => pc.name === sub.debtorFspId);
-      const creditorPc = allParticipantCurrencyIds.find(pc => pc.name === sub.creditorFspId);
-      // Try external participant lookup
-      const debtorExt = allExternalParticipants.find(ep => ep.externalParticipantName === sub.debtorFspId);
-      const creditorExt = allExternalParticipants.find(ep => ep.externalParticipantName === sub.creditorFspId);
-      return {
+        const debtorPc = allParticipantCurrencyIds.find(pc => pc.name === sub.debtorFspId);
+        const creditorPc = allParticipantCurrencyIds.find(pc => pc.name === sub.creditorFspId);
+        const debtorExt = allExternalParticipants.find(ep => ep.externalParticipantName === sub.debtorFspId);
+        const creditorExt = allExternalParticipants.find(ep => ep.externalParticipantName === sub.creditorFspId);
+        return {
       ...sub,
       debtorName: extName(debtorExt, pcName(debtorPc)) || sub.debtorFspId,
       creditorName: extName(creditorExt, pcName(creditorPc)) || sub.creditorFspId,
       currency: sub.currency
-      };
+        };
       });
       }
 
-      for (const row of calculatedSettlementRowsWithDetails) {
-      const netDebtorName = extName(row.payerExternalParticipant, pcName(row.payerParticipantCurrencyDetails)) || pcName(row.payerParticipantCurrencyDetails);
-      const netCreditorName = extName(row.payeeExternalParticipant, pcName(row.payeeParticipantCurrencyDetails)) || pcName(row.payeeParticipantCurrencyDetails);
-      const currency = pcCurrency(row.payeeParticipantCurrencyDetails) || pcCurrency(row.payerParticipantCurrencyDetails) || '';
-      const totalSent = fmt(row.totalAmountSent);
-      const netSettlement = fmt(row.netSettlementAmount);
+      // Sort so non-proxy debtors come first (prioritize non-proxy FSPs as main row debtor)
+      function isProxyDebtor(row) {
+      const pc = pcMap[row.debtor];
+      return pc && pc.isProxy;
+      }
+      mainRows.sort((a, b) => {
+      const aProxy = isProxyDebtor(a);
+      const bProxy = isProxyDebtor(b);
+      if (aProxy === bProxy) return 0;
+      return aProxy ? 1 : -1;
+      });
+
+      for (const row of mainRows) {
+      const payerParticipantCurrencyDetails = pcMap[row.debtor];
+      const payeeParticipantCurrencyDetails = pcMap[row.creditor];
+      const payerExternalParticipant = getExternalParticipant(row.debtor);
+      const payeeExternalParticipant = getExternalParticipant(row.creditor);
+
+      const netDebtorName = extName(payerExternalParticipant, pcName(payerParticipantCurrencyDetails)) || pcName(payerParticipantCurrencyDetails);
+      const netCreditorName = extName(payeeExternalParticipant, pcName(payeeParticipantCurrencyDetails)) || pcName(payeeParticipantCurrencyDetails);
+      const currency = pcCurrency(payeeParticipantCurrencyDetails) || pcCurrency(payerParticipantCurrencyDetails) || '';
+      // Total Received Amount: always shown in ()
+      const totalSent = fmt(row.totalSent);
+      const totalReceived = fmt(row.totalReceived, { forceParens: row.totalReceived !== 0 });
+      // Net Settlement Amount: show in () if negative
+      const netSettlement = fmt(row.netSettlement, { forceParens: row.netSettlement < 0 });
       %>
       <tr style="font-weight:bold; background:#e9f3fa;">
       <td><%= netDebtorName %></td>
       <td><%= netCreditorName %></td>
       <td><%= currency %></td>
       <td><%= totalSent %></td>
+      <td><%= totalReceived %></td>
       <td><%= netSettlement %></td>
       <td><%= currency %></td>
       </tr>
@@ -612,87 +727,88 @@ spec:
       // Sub-rows: show underlying creditor/debtor FSPs using quoteParty and its amount, but use settlementParticipantCurrencyIdsResult for totals
       const subRows = sumUnderlyingFspMovements(row);
       for (const sub of subRows) {
-      const subTotalSent = fmt(sub.totalSent);
-      const subNetSettlement = fmt(sub.netSettlement);
+        // Sub-row: received always in (), net settlement in () if negative
+        const subTotalSent = fmt(sub.totalSent);
+        const subTotalReceived = fmt(sub.totalReceived, { forceParens: sub.totalReceived !== 0 });
+        const subNetSettlement = fmt(sub.netSettlement, { forceParens: sub.netSettlement < 0 });
       %>
       <tr style="background:#f9f9f9;">
       <td style="padding-left:2em;">&#8627; <%= sub.debtorName %></td>
       <td><%= sub.creditorName %></td>
       <td><%= sub.currency %></td>
       <td><%= subTotalSent %></td>
+      <td><%= subTotalReceived %></td>
       <td><%= subNetSettlement %></td>
       <td><%= sub.currency %></td>
       </tr>
       <%
       }
       %>
-      <tr><td colspan="6" style="background:#fff; height:8px; border:none;"></td></tr>
+      <tr><td colspan="7" style="background:#fff; height:8px; border:none;"></td></tr>
       <%
       }
       %>
       </tbody>
       </table>
       </div>
-
-      <div class="footer" style="clear:both; text-align:center; margin-top:40px;">
-      <p>Generated on: <%= (new Date()).toUTCString() %></p>
-      </div>
       </div>
     </body>
 
-    <div style="margin-top:30px;">
-      <button id="toggleTransfersBtn" onclick="toggleTransfersTable()" style="padding:8px 16px; background:#00447c; color:#fff; border:none; border-radius:4px; cursor:pointer;">
-        Show Transfers in Settlement
-      </button>
-    </div>
-    <div id="transfersTableContainer" style="display:none; margin-top:20px;">
-      <h2 id="transfersHeader" style="margin-top:0;">Transfers in Settlement</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Transfer ID</th>
-            <th>Debtor FSP</th>
-            <th>Creditor FSP</th>
-            <th>Debtor Currency</th>
-            <th>Creditor Currency</th>
-            <th>Debtor Amount</th>
-            <th>Creditor Amount</th>
-            <th>Quote ID</th>
-            <th>Quote Party Debtor</th>
-            <th>Quote Party Creditor</th>
-          </tr>
-        </thead>
-        <tbody>
-          <%
-            // Helper to get quote party by transferId and amount sign
-            function getQuotePartyByAmount(qps, sign) {
-              return qps.find(qp => (sign > 0 ? Number(qp.amount) > 0 : Number(qp.amount) < 0));
-            }
-            for (const txn of settlementParticipantCurrencyIdsResult) {
-              const transferId = txn.transferId;
-              const debtorPC = allParticipantCurrencyIds.find(pc => pc.participantCurrencyId === txn.debtorParticipantCurrencyId);
-              const creditorPC = allParticipantCurrencyIds.find(pc => pc.participantCurrencyId === txn.creditorParticipantCurrencyId);
-              const qps = quotePartiesByTransferIdMap[transferId] || [];
-              const qpDebtor = getQuotePartyByAmount(qps, 1);
-              const qpCreditor = getQuotePartyByAmount(qps, -1);
-          %>
-          <tr>
-            <td><%= transferId %></td>
-            <td><%= debtorPC ? debtorPC.name : '' %></td>
-            <td><%= creditorPC ? creditorPC.name : '' %></td>
-            <td><%= debtorPC ? debtorPC.currencyId : '' %></td>
-            <td><%= creditorPC ? creditorPC.currencyId : '' %></td>
-            <td><%= fmt(txn.debtorTotalAmount) %></td>
-            <td><%= fmt(txn.creditorTotalAmount) %></td>
-            <td><%= qpDebtor ? qpDebtor.quoteId : (qpCreditor ? qpCreditor.quoteId : '') %></td>
-            <td><%= qpDebtor ? qpDebtor.partyIdentifierValue : '' %></td>
-            <td><%= qpCreditor ? qpCreditor.partyIdentifierValue : '' %></td>
-          </tr>
-          <%
-            }
-          %>
-        </tbody>
-      </table>
+    <div></div>
+      <div style="margin-top:30px;">
+        <button id="toggleTransfersBtn" onclick="toggleTransfersTable()" style="padding:8px 16px; background:#00447c; color:#fff; border:none; border-radius:4px; cursor:pointer;">
+          Show Transfers in Settlement
+        </button>
+      </div>
+      <div id="transfersTableContainer" style="display:none; margin-top:20px;">
+        <h2 id="transfersHeader" style="margin-top:0;">Transfers in Settlement</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Transfer ID</th>
+              <th>Debtor FSP</th>
+              <th>Creditor FSP</th>
+              <th>Debtor Currency</th>
+              <th>Creditor Currency</th>
+              <th>Debtor Amount</th>
+              <th>Creditor Amount</th>
+              <th>Quote ID</th>
+              <th>Quote Party Debtor</th>
+              <th>Quote Party Creditor</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%
+              // Helper to get quote party by transferId and amount sign
+              function getQuotePartyByAmount(qps, sign) {
+                return qps.find(qp => (sign > 0 ? Number(qp.amount) > 0 : Number(qp.amount) < 0));
+              }
+              for (const txn of settlementParticipantCurrencyIdsResult) {
+                const transferId = txn.transferId;
+                const debtorPC = allParticipantCurrencyIds.find(pc => pc.participantCurrencyId === txn.debtorParticipantCurrencyId);
+                const creditorPC = allParticipantCurrencyIds.find(pc => pc.participantCurrencyId === txn.creditorParticipantCurrencyId);
+                const qps = quotePartiesByTransferIdMap[transferId] || [];
+                const qpDebtor = getQuotePartyByAmount(qps, 1);
+                const qpCreditor = getQuotePartyByAmount(qps, -1);
+            %>
+            <tr>
+              <td><%= transferId %></td>
+              <td><%= debtorPC ? debtorPC.name : '' %></td>
+              <td><%= creditorPC ? creditorPC.name : '' %></td>
+              <td><%= debtorPC ? debtorPC.currencyId : '' %></td>
+              <td><%= creditorPC ? creditorPC.currencyId : '' %></td>
+              <td><%= fmt(txn.debtorTotalAmount) %></td>
+              <td><%= fmt(txn.creditorTotalAmount) %></td>
+              <td><%= qpDebtor ? qpDebtor.quoteId : (qpCreditor ? qpCreditor.quoteId : '') %></td>
+              <td><%= qpDebtor ? qpDebtor.partyIdentifierValue : '' %></td>
+              <td><%= qpCreditor ? qpCreditor.partyIdentifierValue : '' %></td>
+            </tr>
+            <%
+              }
+            %>
+          </tbody>
+        </table>
+      </div>
     </div>
     <script>
         function toggleTransfersTable() {
