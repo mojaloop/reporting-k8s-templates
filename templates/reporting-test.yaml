@@ -174,6 +174,7 @@ spec:
         ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
 
         GROUP BY result1.participantCurrencyId, result2.participantCurrencyId;
+
     - name: allParticipantCurrencyIds
       query: >
         SELECT
@@ -190,7 +191,6 @@ spec:
         ORDER BY pc.participantCurrencyId;
     - name: settlementParticipantCurrencyIdsResultExternalParticipants
       query: >
-        -- Main SELECT: For each pair of debtor/creditor participantCurrencyId, get their amounts, names, FX flag, and transfer references
         SELECT
           result1.participantCurrencyId as debtorParticipantCurrencyId,
           result2.participantCurrencyId as creditorParticipantCurrencyId,
@@ -198,12 +198,10 @@ spec:
           result2.amount as creditorTotalAmount,
           COALESCE(extDebtorInitiating.externalParticipantName, extDebtorPayer.externalParticipantName, result1.participantName) as debtorExternalParticipantName,
           COALESCE(extCreditorCounterParty.externalParticipantName, extCreditorPayee.externalParticipantName, result2.participantName) as creditorExternalParticipantName,
-          -- FX transfer detection: 1 if FX, 0 if not
           CASE
         WHEN result1.isFxTransfer = 1 OR result2.isFxTransfer = 1 THEN 1
         ELSE 0
           END as isFxTransfer,
-          -- Show determiningTransferId for FX, transferId for transfer
           CASE
         WHEN result1.isFxTransfer = 1 THEN result1.determiningTransferId
         ELSE result1.transferId
@@ -214,10 +212,9 @@ spec:
           END as creditorTransferReference
         FROM
           (
-        -- result1: All positive (debtor) amounts for each participantCurrencyId, transfer, and leg
         SELECT
           pc.participantCurrencyId,
-          pc.participantId,
+          pc.participantId as participantId,
           p.name as participantName,
           unioned.transferId,
           unioned.uniqueLegId,
@@ -225,7 +222,6 @@ spec:
           unioned.isFxTransfer,
           unioned.determiningTransferId
         FROM (
-          -- Standard transfer fulfilments (non-FX)
           SELECT
             ppc.participantCurrencyId,
             ppc.change as amount,
@@ -243,7 +239,6 @@ spec:
 
           UNION ALL
 
-          -- FX transfer fulfilments (FX)
           SELECT
             ppc.participantCurrencyId,
             ppc.change as amount,
@@ -266,10 +261,9 @@ spec:
           ) as result1
         INNER JOIN
           (
-        -- result2: All negative (creditor) amounts for each participantCurrencyId, transfer, and leg
         SELECT
           pc.participantCurrencyId,
-          pc.participantId,
+          pc.participantId as participantId,
           p.name as participantName,
           unioned.transferId,
           unioned.uniqueLegId,
@@ -312,35 +306,33 @@ spec:
             INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
             INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
         ) AS unioned
-        INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
-        INNER JOIN participant AS p ON pc.participantId = p.participantId
-        WHERE unioned.amount < 0
-          ) as result2
-        -- Join debtor and creditor rows by transferId and uniqueLegId
+          INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
+          INNER JOIN participant AS p ON pc.participantId = p.participantId
+          WHERE unioned.amount < 0
+        ) as result2
         ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
 
-        -- Join to get external participant names for debtor (payer, non-FX)
         LEFT JOIN (
           SELECT
         tp.transferId,
         tp.participantCurrencyId,
+        p.participantId,
         CASE
           WHEN p.isProxy = 1 THEN ep.name
           ELSE p.name
         END as externalParticipantName
           FROM transferParticipant tp
           LEFT JOIN externalParticipant ep ON tp.externalParticipantId = ep.externalParticipantId
-          INNER JOIN participantCurrency pc ON tp.participantCurrencyId = pc.participantCurrencyId
-          INNER JOIN participant p ON pc.participantId = p.participantId
+          INNER JOIN participant p ON tp.participantId = p.participantId
           WHERE tp.transferParticipantRoleTypeId IN ('1', 'PAYER_DFSP')
         ) as extDebtorPayer
         ON result1.transferId = extDebtorPayer.transferId AND result1.participantCurrencyId = extDebtorPayer.participantCurrencyId
 
-        -- Join to get external participant names for debtor (initiating, FX)
         LEFT JOIN (
           SELECT
         fxtf.commitRequestId as transferId,
         ftp.participantCurrencyId,
+        p.participantId,
         CASE
           WHEN p.isProxy = 1 THEN ep.name
           ELSE p.name
@@ -348,35 +340,33 @@ spec:
           FROM fxTransferParticipant ftp
           INNER JOIN fxTransferFulfilment fxtf ON ftp.commitRequestId = fxtf.commitRequestId
           LEFT JOIN externalParticipant ep ON ftp.externalParticipantId = ep.externalParticipantId
-          INNER JOIN participantCurrency pc ON ftp.participantCurrencyId = pc.participantCurrencyId
-          INNER JOIN participant p ON pc.participantId = p.participantId
+          INNER JOIN participant p ON ftp.participantId = p.participantId
           WHERE ftp.transferParticipantRoleTypeId IN ('6', 'INITIATING_FSP')
         AND ftp.commitRequestId IS NOT NULL
         ) as extDebtorInitiating
-        ON result1.uniqueLegId = extDebtorInitiating.transferId AND result1.participantCurrencyId = extDebtorInitiating.participantCurrencyId
+        ON result1.uniqueLegId = extDebtorInitiating.transferId AND result1.participantId = extDebtorInitiating.participantId
 
-        -- Join to get external participant names for creditor (payee, non-FX)
         LEFT JOIN (
           SELECT
         tp.transferId,
         tp.participantCurrencyId,
+        p.participantId,
         CASE
           WHEN p.isProxy = 1 THEN ep.name
           ELSE p.name
         END as externalParticipantName
           FROM transferParticipant tp
           LEFT JOIN externalParticipant ep ON tp.externalParticipantId = ep.externalParticipantId
-          INNER JOIN participantCurrency pc ON tp.participantCurrencyId = pc.participantCurrencyId
-          INNER JOIN participant p ON pc.participantId = p.participantId
+          INNER JOIN participant p ON tp.participantId = p.participantId
           WHERE tp.transferParticipantRoleTypeId IN ('2', 'PAYEE_DFSP')
         ) as extCreditorPayee
-        ON result2.transferId = extCreditorPayee.transferId AND result2.participantCurrencyId = extCreditorPayee.participantCurrencyId
+        ON result2.transferId = extCreditorPayee.transferId AND result2.participantId = extCreditorPayee.participantId
 
-        -- Join to get external participant names for creditor (counterparty, FX)
         LEFT JOIN (
           SELECT
         fxtf.commitRequestId as transferId,
         ftp.participantCurrencyId,
+        p.participantId,
         CASE
           WHEN p.isProxy = 1 THEN ep.name
           ELSE p.name
@@ -384,12 +374,11 @@ spec:
           FROM fxTransferParticipant ftp
           INNER JOIN fxTransferFulfilment fxtf ON ftp.commitRequestId = fxtf.commitRequestId
           LEFT JOIN externalParticipant ep ON ftp.externalParticipantId = ep.externalParticipantId
-          INNER JOIN participantCurrency pc ON ftp.participantCurrencyId = pc.participantCurrencyId
-          INNER JOIN participant p ON pc.participantId = p.participantId
+          INNER JOIN participant p ON ftp.participantId = p.participantId
           WHERE ftp.transferParticipantRoleTypeId IN ('7', 'COUNTER_PARTY_FSP')
         AND ftp.commitRequestId IS NOT NULL
         ) as extCreditorCounterParty
-        ON result2.uniqueLegId = extCreditorCounterParty.transferId AND result2.participantCurrencyId = extCreditorCounterParty.participantCurrencyId
+        ON result2.uniqueLegId = extCreditorCounterParty.transferId AND result2.participantId = extCreditorCounterParty.participantId;
   template: |
     <!DOCTYPE html>
     <html lang="en">
@@ -737,6 +726,7 @@ spec:
             <pre>
 
             <code>
+            f
             <%= JSON.stringify(settlementParticipantCurrencyIdsResultExternalParticipants, null, 2) %>
             </code>
             </pre>
