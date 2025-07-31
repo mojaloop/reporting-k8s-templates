@@ -10,6 +10,15 @@ spec:
     path: /reporting-bilateral-settlements-external-participants
   permission: transferApi
   queries:
+    - name: allExternalParticipants
+      query: >
+        SELECT
+        ep.externalParticipantId,
+        ep.name as externalParticipantName,
+        ep.createdDate,
+        ep.proxyId
+        FROM externalParticipant AS ep
+        ORDER BY ep.externalParticipantId;
     - name: settlementInfoResult
       query: >
         SELECT
@@ -35,145 +44,137 @@ spec:
     - name: settlementParticipantCurrencyIdsResult
       query: >
         SELECT
-            result1.participantCurrencyId as debtorParticipantCurrencyId,
-            result2.participantCurrencyId as creditorParticipantCurrencyId,
-            SUM(result1.amount) as debtorTotalAmount,
-            SUM(result2.amount) as creditorTotalAmount
+          result1.participantCurrencyId AS debtorParticipantCurrencyId,
+          result2.participantCurrencyId AS creditorParticipantCurrencyId,
+          SUM(result1.amount) AS debtorTotalAmount,
+          SUM(result2.amount) AS creditorTotalAmount
         FROM
-
-        (SELECT
-            pc.participantCurrencyId,
-            unioned.transferId,
-            unioned.uniqueLegId,
-            SUM(unioned.change) as amount
-        FROM (
+          (
             SELECT
-                ppc.participantCurrencyId,
-                ppc.change,
-                tf.settlementWindowId,
-                tf.transferId AS transferId,
-                tf.transferId AS uniqueLegId
-            FROM
-                transferFulfilment AS tf
-            INNER JOIN
-                transferStateChange AS tsc
-                ON tsc.transferId = tf.transferId
-            INNER JOIN
-                participantPositionChange AS ppc
-                ON ppc.transferStateChangeId = tsc.transferStateChangeId
-            INNER JOIN
-                settlementParticipantCurrency AS spc
-                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-            INNER JOIN
-                settlementSettlementWindow ssw
-                ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+              pc.participantCurrencyId,
+              unioned.transferId,
+              unioned.uniqueLegId,
+              SUM(unioned.change) AS amount
+            FROM (
+              SELECT
+          ppc.participantCurrencyId,
+          ppc.change,
+          tf.settlementWindowId,
+          tf.transferId AS transferId,
+          tf.transferId AS uniqueLegId
+              FROM
+          transferFulfilment AS tf
+          INNER JOIN transferStateChange AS tsc
+            ON tsc.transferId = tf.transferId
+          INNER JOIN participantPositionChange AS ppc
+            ON ppc.transferStateChangeId = tsc.transferStateChangeId
+          INNER JOIN settlementParticipantCurrency AS spc
+            ON ppc.participantCurrencyId = spc.participantCurrencyId
+            AND spc.settlementId = :settlementId
+          INNER JOIN settlementSettlementWindow ssw
+            ON tf.settlementWindowId = ssw.settlementWindowId
+            AND ssw.settlementId = :settlementId
 
-            UNION ALL
+              UNION ALL
 
+              SELECT
+          ppc.participantCurrencyId,
+          ppc.change,
+          fxtf.settlementWindowId,
+          fxt1.determiningTransferId AS transferId,
+          fxt1.commitRequestId AS uniqueLegId
+              FROM
+          fxTransferFulfilment AS fxtf
+          INNER JOIN fxTransfer AS fxt1
+            ON fxt1.commitRequestId = fxtf.commitRequestId
+          INNER JOIN fxTransferStateChange AS fxtsc
+            ON fxtsc.commitRequestId = fxtf.commitRequestId
+          INNER JOIN participantPositionChange AS ppc
+            ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+          INNER JOIN settlementParticipantCurrency AS spc
+            ON ppc.participantCurrencyId = spc.participantCurrencyId
+            AND spc.settlementId = :settlementId
+          INNER JOIN settlementSettlementWindow ssw
+            ON fxtf.settlementWindowId = ssw.settlementWindowId
+            AND ssw.settlementId = :settlementId
+            ) AS unioned
+            INNER JOIN participantCurrency AS pc
+              ON pc.participantCurrencyId = unioned.participantCurrencyId
+            WHERE unioned.change > 0
+            GROUP BY
+              pc.participantCurrencyId,
+              unioned.transferId,
+              unioned.uniqueLegId
+            ORDER BY unioned.transferId
+          ) AS result1
+
+          INNER JOIN
+
+          (
             SELECT
-                ppc.participantCurrencyId,
-                ppc.change,
-                fxtf.settlementWindowId,
-                fxt1.determiningTransferId AS transferId,
-                fxt1.commitRequestId AS uniqueLegId
-            FROM
-                fxTransferFulfilment AS fxtf
-            INNER JOIN
-                fxTransfer AS fxt1
-                ON fxt1.commitRequestId = fxtf.commitRequestId
-            INNER JOIN
-                fxTransferStateChange AS fxtsc
-                ON fxtsc.commitRequestId = fxtf.commitRequestId
-            INNER JOIN
-                participantPositionChange AS ppc
-                ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-            INNER JOIN
-                settlementParticipantCurrency AS spc
-                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-            INNER JOIN
-                settlementSettlementWindow ssw
-                ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-        ) AS unioned
-        INNER JOIN
-            participantCurrency AS pc
-            ON pc.participantCurrencyId = unioned.participantCurrencyId
-        WHERE unioned.change > 0
+              pc.participantCurrencyId,
+              unioned.transferId,
+              unioned.uniqueLegId,
+              SUM(unioned.change) AS amount
+            FROM (
+              SELECT
+          ppc.participantCurrencyId,
+          ppc.change,
+          tf.settlementWindowId,
+          tf.transferId AS transferId,
+          tf.transferId AS uniqueLegId
+              FROM
+          transferFulfilment AS tf
+          INNER JOIN transferStateChange AS tsc
+            ON tsc.transferId = tf.transferId
+          INNER JOIN participantPositionChange AS ppc
+            ON ppc.transferStateChangeId = tsc.transferStateChangeId
+          INNER JOIN settlementParticipantCurrency AS spc
+            ON ppc.participantCurrencyId = spc.participantCurrencyId
+            AND spc.settlementId = :settlementId
+          INNER JOIN settlementSettlementWindow ssw
+            ON tf.settlementWindowId = ssw.settlementWindowId
+            AND ssw.settlementId = :settlementId
+
+              UNION ALL
+
+              SELECT
+          ppc.participantCurrencyId,
+          ppc.change,
+          fxtf.settlementWindowId,
+          fxt1.determiningTransferId AS transferId,
+          fxt1.commitRequestId AS uniqueLegId
+              FROM
+          fxTransferFulfilment AS fxtf
+          INNER JOIN fxTransfer AS fxt1
+            ON fxt1.commitRequestId = fxtf.commitRequestId
+          INNER JOIN fxTransferStateChange AS fxtsc
+            ON fxtsc.commitRequestId = fxtf.commitRequestId
+          INNER JOIN participantPositionChange AS ppc
+            ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+          INNER JOIN settlementParticipantCurrency AS spc
+            ON ppc.participantCurrencyId = spc.participantCurrencyId
+            AND spc.settlementId = :settlementId
+          INNER JOIN settlementSettlementWindow ssw
+            ON fxtf.settlementWindowId = ssw.settlementWindowId
+            AND ssw.settlementId = :settlementId
+            ) AS unioned
+            INNER JOIN participantCurrency AS pc
+              ON pc.participantCurrencyId = unioned.participantCurrencyId
+            WHERE unioned.change < 0
+            GROUP BY
+              pc.participantCurrencyId,
+              unioned.transferId,
+              unioned.uniqueLegId
+            ORDER BY unioned.transferId
+          ) AS result2
+
+          ON result1.transferId = result2.transferId
+          AND result1.uniqueLegId = result2.uniqueLegId
+
         GROUP BY
-            pc.participantCurrencyId,
-            unioned.transferId,
-            unioned.uniqueLegId
-        ORDER BY unioned.transferId
-        ) as result1
-
-        INNER JOIN
-
-        (SELECT
-            pc.participantCurrencyId,
-            unioned.transferId,
-            unioned.uniqueLegId,
-            SUM(unioned.change) as amount
-        FROM (
-            SELECT
-                ppc.participantCurrencyId,
-                ppc.change,
-                tf.settlementWindowId,
-                tf.transferId AS transferId,
-                tf.transferId AS uniqueLegId
-            FROM
-                transferFulfilment AS tf
-            INNER JOIN
-                transferStateChange AS tsc
-                ON tsc.transferId = tf.transferId
-            INNER JOIN
-                participantPositionChange AS ppc
-                ON ppc.transferStateChangeId = tsc.transferStateChangeId
-            INNER JOIN
-                settlementParticipantCurrency AS spc
-                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-            INNER JOIN
-                settlementSettlementWindow ssw
-                ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-
-            UNION ALL
-
-            SELECT
-                ppc.participantCurrencyId,
-                ppc.change,
-                fxtf.settlementWindowId,
-                fxt1.determiningTransferId AS transferId,
-                fxt1.commitRequestId AS uniqueLegId
-            FROM
-                fxTransferFulfilment AS fxtf
-            INNER JOIN
-                fxTransfer AS fxt1
-                ON fxt1.commitRequestId = fxtf.commitRequestId
-            INNER JOIN
-                fxTransferStateChange AS fxtsc
-                ON fxtsc.commitRequestId = fxtf.commitRequestId
-            INNER JOIN
-                participantPositionChange AS ppc
-                ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-            INNER JOIN
-                settlementParticipantCurrency AS spc
-                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-            INNER JOIN
-                settlementSettlementWindow ssw
-                ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-        ) AS unioned
-        INNER JOIN
-            participantCurrency AS pc
-            ON pc.participantCurrencyId = unioned.participantCurrencyId
-        WHERE unioned.change < 0
-        GROUP BY
-            pc.participantCurrencyId,
-            unioned.transferId,
-            unioned.uniqueLegId
-        ORDER BY unioned.transferId
-        ) as result2
-
-        ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
-
-        GROUP BY result1.participantCurrencyId, result2.participantCurrencyId;
+          result1.participantCurrencyId,
+          result2.participantCurrencyId;
 
     - name: allParticipantCurrencyIds
       query: >
@@ -192,208 +193,199 @@ spec:
     - name: settlementParticipantCurrencyIdsResultExternalParticipants
       query: >
         SELECT
-          result1.*,
-          result2.*,
-          result1.participantCurrencyId as debtorParticipantCurrencyId,
-          result2.participantCurrencyId as creditorParticipantCurrencyId,
-          result1.amount as debtorTotalAmount,
-          result2.amount as creditorTotalAmount,
-          COALESCE(extDebtorInitiating.externalParticipantName, extDebtorPayer.externalParticipantName, result1.participantName) as debtorExternalParticipantName,
-          COALESCE(extCreditorCounterParty.externalParticipantName, extCreditorPayee.externalParticipantName, result2.participantName) as creditorExternalParticipantName,
-          COALESCE(extDebtorInitiating.participantId, extDebtorPayer.participantId, result1.participantId) as debtorTransferParticipantId,
-          COALESCE(extCreditorCounterParty.participantId, extCreditorPayee.participantId, result2.participantId) as creditorTransferParticipantId,
-          COALESCE(extDebtorInitiating.transferParticipantRoleTypeId, extDebtorPayer.transferParticipantRoleTypeId, NULL) as debtorTransferParticipantRoleTypeId,
-          COALESCE(extCreditorCounterParty.transferParticipantRoleTypeId, extCreditorPayee.transferParticipantRoleTypeId, NULL) as creditorTransferParticipantRoleTypeId,
-          CASE
-        WHEN result1.isFxTransfer = 1 OR result2.isFxTransfer = 1 THEN 1
-        ELSE 0
-          END as isFxTransfer,
-          CASE
-        WHEN result1.isFxTransfer = 1 THEN result1.determiningTransferId
-        ELSE result1.transferId
-          END as debtorTransferReference,
-          CASE
-        WHEN result2.isFxTransfer = 1 THEN result2.determiningTransferId
-        ELSE result2.transferId
-          END as creditorTransferReference,
-          extDebtorPayer.*,
-          extDebtorInitiating.*,
-          extCreditorPayee.*,
-          extCreditorCounterParty.*
+            result1.participantCurrencyId as debtorParticipantCurrencyId,
+            result2.participantCurrencyId as creditorParticipantCurrencyId,
+            result1.externalParticipantId as debtorExternalParticipantId,
+            result2.externalParticipantId as creditorExternalParticipantId,
+            SUM(result1.amount) as debtorTotalAmount,
+            SUM(result2.amount) as creditorTotalAmount
+        FROM
+
+        (SELECT
+            pc.participantCurrencyId,
+            unioned.transferId,
+            unioned.uniqueLegId,
+            unioned.pid,
+            unioned.externalParticipantId,
+            SUM(unioned.change) as amount
         FROM (
-          SELECT
-            pc.participantCurrencyId,
-            pc.participantId as participantId,
-            p.name as participantName,
-            unioned.transferId,
-            unioned.uniqueLegId,
-            unioned.amount,
-            unioned.isFxTransfer,
-            unioned.determiningTransferId
-          FROM (
             SELECT
-              ppc.participantCurrencyId,
-              ppc.change as amount,
-              tf.settlementWindowId,
-              tf.transferId AS transferId,
-              tf.transferId AS uniqueLegId,
-              0 as isFxTransfer,
-              tf.transferId as determiningTransferId
+                ppc.participantCurrencyId,
+                ppc.change,
+                COALESCE(ep.name, pc.participantId) as pid,
+                ep.externalParticipantId,
+                tf.settlementWindowId,
+                tf.transferId AS transferId,
+                tf.transferId AS uniqueLegId
             FROM
-              transferFulfilment AS tf
-              INNER JOIN transferStateChange AS tsc ON tsc.transferId = tf.transferId
-              INNER JOIN participantPositionChange AS ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
-              INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-              INNER JOIN settlementSettlementWindow ssw ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+                transferFulfilment AS tf
+            INNER JOIN
+                transferStateChange AS tsc
+                ON tsc.transferId = tf.transferId
+            INNER JOIN
+                participantPositionChange AS ppc
+                ON ppc.transferStateChangeId = tsc.transferStateChangeId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+        LEFT JOIN
+          participantCurrency pc
+                  ON pc.participantCurrencyId = ppc.participantCurrencyId
+        LEFT JOIN
+                  transferParticipant tp
+                  ON tp.transferId = tf.transferId AND tp.transferParticipantRoleTypeId IN ('1', 'PAYER_DFSP')
+        LEFT JOIN
+          externalParticipant ep
+                  ON tp.externalParticipantId = ep.externalParticipantId
 
             UNION ALL
 
             SELECT
-              ppc.participantCurrencyId,
-              ppc.change as amount,
-              fxtf.settlementWindowId,
-              fxt1.determiningTransferId AS transferId,
-              fxt1.commitRequestId AS uniqueLegId,
-              1 as isFxTransfer,
-              fxt1.determiningTransferId as determiningTransferId
+                ppc.participantCurrencyId,
+                ppc.change,
+                COALESCE(ep.name, pc.participantId) as pid,
+                ep.externalParticipantId,
+                fxtf.settlementWindowId,
+                fxt1.determiningTransferId AS transferId,
+                fxt1.commitRequestId AS uniqueLegId
             FROM
-              fxTransferFulfilment AS fxtf
-              INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
-              INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
-              INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-              INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-              INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-          ) AS unioned
-            INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
-            INNER JOIN participant AS p ON pc.participantId = p.participantId
-            WHERE unioned.amount > 0
-          ) as result1
-        INNER JOIN (
-          SELECT
+                fxTransferFulfilment AS fxtf
+            INNER JOIN
+                fxTransfer AS fxt1
+                ON fxt1.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+                fxTransferStateChange AS fxtsc
+                ON fxtsc.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+                participantPositionChange AS ppc
+                ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+        LEFT JOIN
+          participantCurrency pc
+                  ON pc.participantCurrencyId = ppc.participantCurrencyId
+        LEFT JOIN
+                  fxTransferParticipant ftp
+                  ON ftp.commitRequestId = fxt1.commitRequestId AND ftp.transferParticipantRoleTypeId IN ('6', 'INITIATING')
+        LEFT JOIN
+          externalParticipant ep
+                  ON ftp.externalParticipantId = ep.externalParticipantId
+        ) AS unioned
+        INNER JOIN
+            participantCurrency AS pc
+            ON pc.participantCurrencyId = unioned.participantCurrencyId
+        WHERE unioned.change > 0
+        GROUP BY
             pc.participantCurrencyId,
-            pc.participantId as participantId,
-            p.name as participantName,
             unioned.transferId,
             unioned.uniqueLegId,
-            unioned.amount,
-            unioned.isFxTransfer,
-            unioned.determiningTransferId
-          FROM (
-            -- Standard transfer fulfilments (non-FX)
+            unioned.pid,
+            unioned.externalParticipantId
+        ORDER BY unioned.transferId
+        ) as result1
+
+        INNER JOIN
+
+        (SELECT
+            pc.participantCurrencyId,
+            unioned.transferId,
+            unioned.uniqueLegId,
+            unioned.pid,
+            unioned.externalParticipantId,
+            SUM(unioned.change) as amount
+        FROM (
             SELECT
-              ppc.participantCurrencyId,
-              ppc.change as amount,
-              tf.settlementWindowId,
-              tf.transferId AS transferId,
-              tf.transferId AS uniqueLegId,
-              0 as isFxTransfer,
-              tf.transferId as determiningTransferId
+                ppc.participantCurrencyId,
+                ppc.change,
+                COALESCE(ep.name, pc.participantId) as pid,
+                ep.externalParticipantId,
+                tf.settlementWindowId,
+                tf.transferId AS transferId,
+                tf.transferId AS uniqueLegId
             FROM
-              transferFulfilment AS tf
-              INNER JOIN transferStateChange AS tsc ON tsc.transferId = tf.transferId
-              INNER JOIN participantPositionChange AS ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
-              INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-              INNER JOIN settlementSettlementWindow ssw ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-            UNION ALL
+                transferFulfilment AS tf
+            INNER JOIN
+                transferStateChange AS tsc
+                ON tsc.transferId = tf.transferId
+            INNER JOIN
+                participantPositionChange AS ppc
+                ON ppc.transferStateChangeId = tsc.transferStateChangeId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+        LEFT JOIN
+          participantCurrency pc
+                  ON pc.participantCurrencyId = ppc.participantCurrencyId
+          LEFT JOIN
+                  transferParticipant tp
+                  ON tp.transferId = tf.transferId AND tp.transferParticipantRoleTypeId IN ('2', 'PAYEE_DFSP')
+        LEFT JOIN
+          externalParticipant ep
+                  ON tp.externalParticipantId = ep.externalParticipantId
+              UNION ALL
 
-            -- FX transfer fulfilments (FX)
             SELECT
-              ppc.participantCurrencyId,
-              ppc.change as amount,
-              fxtf.settlementWindowId,
-              fxt1.determiningTransferId AS transferId,
-              fxt1.commitRequestId AS uniqueLegId,
-              1 as isFxTransfer,
-              fxt1.determiningTransferId as determiningTransferId
+                ppc.participantCurrencyId,
+                ppc.change,
+                COALESCE(ep.name, pc.participantId) as pid,
+                ep.externalParticipantId,
+                fxtf.settlementWindowId,
+                fxt1.determiningTransferId AS transferId,
+                fxt1.commitRequestId AS uniqueLegId
             FROM
-              fxTransferFulfilment AS fxtf
-              INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
-              INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
-              INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-              INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-              INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-            ) AS unioned
-              INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
-              INNER JOIN participant AS p ON pc.participantId = p.participantId
-              WHERE unioned.amount < 0
-          ) as result2
-          ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
+                fxTransferFulfilment AS fxtf
+            INNER JOIN
+                fxTransfer AS fxt1
+                ON fxt1.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+                fxTransferStateChange AS fxtsc
+                ON fxtsc.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+                participantPositionChange AS ppc
+                ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+            INNER JOIN
+                settlementParticipantCurrency AS spc
+                ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+                settlementSettlementWindow ssw
+                ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+        LEFT JOIN
+          participantCurrency pc
+                  ON pc.participantCurrencyId = ppc.participantCurrencyId
+        LEFT JOIN
+                  fxTransferParticipant ftp
+                  ON ftp.commitRequestId = fxt1.commitRequestId AND ftp.transferParticipantRoleTypeId IN ('7', 'COUNTERPARTY')
+                  AND (ftp.participantCurrencyId IS NULL OR ftp.participantCurrencyId = pc.participantCurrencyId)
+        LEFT JOIN
+          externalParticipant ep
+                  ON ftp.externalParticipantId = ep.externalParticipantId
+        ) AS unioned
+        INNER JOIN
+            participantCurrency AS pc
+            ON pc.participantCurrencyId = unioned.participantCurrencyId
+        WHERE unioned.change < 0
+        GROUP BY
+            pc.participantCurrencyId,
+            unioned.transferId,
+            unioned.uniqueLegId,
+            unioned.pid,
+            unioned.externalParticipantId
+        ORDER BY unioned.transferId
+        ) as result2
 
-        LEFT JOIN (
-          SELECT
-        tp.transferId,
-        tp.participantCurrencyId,
-        p.participantId,
-        tp.transferParticipantRoleTypeId,
-        CASE
-          WHEN p.isProxy = 1 THEN ep.name
-          ELSE p.name
-        END as externalParticipantName
-          FROM transferParticipant tp
-          LEFT JOIN externalParticipant ep ON tp.externalParticipantId = ep.externalParticipantId
-          INNER JOIN participant p ON tp.participantId = p.participantId
-          WHERE tp.transferParticipantRoleTypeId IN ('1', 'PAYER_DFSP')
-        ) as extDebtorPayer
-        ON result1.transferId = extDebtorPayer.transferId AND result1.participantId = extDebtorPayer.participantId
+        ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
 
-        LEFT JOIN (
-          SELECT
-        fxtf.commitRequestId as transferId,
-        ftp.participantCurrencyId,
-        p.participantId,
-        ftp.transferParticipantRoleTypeId,
-        CASE
-          WHEN p.isProxy = 1 THEN ep.name
-          ELSE p.name
-        END as externalParticipantName
-          FROM fxTransferParticipant ftp
-          INNER JOIN fxTransferFulfilment fxtf ON ftp.commitRequestId = fxtf.commitRequestId
-          LEFT JOIN externalParticipant ep ON ftp.externalParticipantId = ep.externalParticipantId
-          INNER JOIN participant p ON ftp.participantId = p.participantId
-          WHERE ftp.transferParticipantRoleTypeId IN ('6', 'INITIATING_FSP')
-        AND ftp.commitRequestId IS NOT NULL
-        AND ftp.participantCurrencyId IS NOT NULL
-        AND ftp.fxParticipantCurrencyTypeId IS NOT NULL
-        ) as extDebtorInitiating
-        ON result1.uniqueLegId = extDebtorInitiating.transferId AND result1.participantId = extDebtorInitiating.participantId
-
-        LEFT JOIN (
-          SELECT
-        tp.transferId,
-        tp.participantCurrencyId,
-        p.participantId,
-        tp.transferParticipantRoleTypeId,
-        CASE
-          WHEN p.isProxy = 1 THEN ep.name
-          ELSE p.name
-        END as externalParticipantName
-          FROM transferParticipant tp
-          LEFT JOIN externalParticipant ep ON tp.externalParticipantId = ep.externalParticipantId
-          INNER JOIN participant p ON tp.participantId = p.participantId
-          WHERE tp.transferParticipantRoleTypeId IN ('2', 'PAYEE_DFSP')
-        ) as extCreditorPayee
-        ON result2.transferId = extCreditorPayee.transferId AND result2.participantId = extCreditorPayee.participantId
-
-        LEFT JOIN (
-          SELECT
-        fxtf.commitRequestId as transferId,
-        ftp.participantCurrencyId,
-        p.participantId,
-        ftp.transferParticipantRoleTypeId,
-        CASE
-          WHEN p.isProxy = 1 THEN ep.name
-          ELSE p.name
-        END as externalParticipantName
-          FROM fxTransferParticipant ftp
-          INNER JOIN fxTransferFulfilment fxtf ON ftp.commitRequestId = fxtf.commitRequestId
-          LEFT JOIN externalParticipant ep ON ftp.externalParticipantId = ep.externalParticipantId
-          INNER JOIN participant p ON ftp.participantId = p.participantId
-          WHERE ftp.transferParticipantRoleTypeId IN ('7', 'COUNTER_PARTY_FSP')
-        AND ftp.commitRequestId IS NOT NULL
-        AND ftp.participantCurrencyId IS NOT NULL
-        AND ftp.fxParticipantCurrencyTypeId IS NOT NULL
-        ) as extCreditorCounterParty
-        ON result2.uniqueLegId = extCreditorCounterParty.transferId AND result2.participantId = extCreditorCounterParty.participantId;
+        GROUP BY result1.participantCurrencyId, result2.participantCurrencyId, result1.pid, result2.pid, result1.externalParticipantId, result2.externalParticipantId;
   template: |
     <!DOCTYPE html>
     <html lang="en">
@@ -401,7 +393,7 @@ spec:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>DRPP Bilateral Settlement Report</title>
+        <title>Bilateral Settlement Report for Regional DRPP</title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -551,66 +543,71 @@ spec:
             }
         </style>
     </head>
-
     <%
-        function calculateNetSettlement(input) {
-            // A map to track transactions for easy lookup
-            const transactionsMap = new Map();
+      // Build a map of externalParticipantId to name from allExternalParticipants
+      const externalParticipantIdMap = {};
+      for (const ep of allExternalParticipants) {
+        externalParticipantIdMap[ep.externalParticipantId] = ep;
+      }
+    %>
+    <%
+      function calculateNetSettlement(input) {
+          // A map to track transactions for easy lookup
+          const transactionsMap = new Map();
 
-            // Helper function to generate unique keys for debtor and creditor pairs
-            function generateKey(debtorId, creditorId) {
-                return `${debtorId}_${creditorId}`;
-            }
+          // Helper function to generate unique keys for debtor and creditor pairs
+          function generateKey(debtorId, creditorId) {
+              return `${debtorId}_${creditorId}`;
+          }
 
-            // Process the input transactions
-            input.forEach(transaction => {
-                const { debtorParticipantCurrencyId, creditorParticipantCurrencyId, debtorTotalAmount } = transaction;
-                const key = generateKey(debtorParticipantCurrencyId, creditorParticipantCurrencyId);
+          // Process the input transactions
+          input.forEach(transaction => {
+              const { debtorParticipantCurrencyId, creditorParticipantCurrencyId, debtorTotalAmount } = transaction;
+              const key = generateKey(debtorParticipantCurrencyId, creditorParticipantCurrencyId);
 
-                // Store transaction in the map
-                if (!transactionsMap.has(key)) {
-                    transactionsMap.set(key, {
-                        netDebtor: debtorParticipantCurrencyId,
-                        netCreditor: creditorParticipantCurrencyId,
-                        totalAmountSent: parseFloat(debtorTotalAmount),
-                        totalReverseAmount: 0
-                    });
-                } else {
-                    transactionsMap.get(key).totalAmountSent += parseFloat(debtorTotalAmount);
-                }
+              // Store transaction in the map
+              if (!transactionsMap.has(key)) {
+                  transactionsMap.set(key, {
+                      netDebtor: debtorParticipantCurrencyId,
+                      netCreditor: creditorParticipantCurrencyId,
+                      totalAmountSent: parseFloat(debtorTotalAmount),
+                      totalReverseAmount: 0
+                  });
+              } else {
+                  transactionsMap.get(key).totalAmountSent += parseFloat(debtorTotalAmount);
+              }
 
-                // Check for a reverse transaction
-                const reverseKey = generateKey(creditorParticipantCurrencyId, debtorParticipantCurrencyId);
-                if (transactionsMap.has(reverseKey)) {
-                    if (transactionsMap.get(reverseKey).totalAmountSent >= parseFloat(debtorTotalAmount)) {
-                        // Update reverse amount for the original transaction
-                        transactionsMap.get(reverseKey).totalReverseAmount -= parseFloat(debtorTotalAmount);
-                        transactionsMap.delete(key);
-                    } else {
-                        // Update reverse amount for the original transaction
-                        transactionsMap.get(key).totalReverseAmount = -transactionsMap.get(reverseKey).totalAmountSent;
-                        transactionsMap.delete(reverseKey);
-                    }
-                }
-            });
+              // Check for a reverse transaction
+              const reverseKey = generateKey(creditorParticipantCurrencyId, debtorParticipantCurrencyId);
+              if (transactionsMap.has(reverseKey)) {
+                  if (transactionsMap.get(reverseKey).totalAmountSent >= parseFloat(debtorTotalAmount)) {
+                      // Update reverse amount for the original transaction
+                      transactionsMap.get(reverseKey).totalReverseAmount -= parseFloat(debtorTotalAmount);
+                      transactionsMap.delete(key);
+                  } else {
+                      // Update reverse amount for the original transaction
+                      transactionsMap.get(key).totalReverseAmount = -transactionsMap.get(reverseKey).totalAmountSent;
+                      transactionsMap.delete(reverseKey);
+                  }
+              }
+          });
 
-            // Calculate net settlement amount and format the output
-            const output = [];
-            transactionsMap.forEach(transaction => {
-                const { netDebtor, netCreditor, totalAmountSent, totalReverseAmount } = transaction;
-                const netSettlementAmount = totalAmountSent + totalReverseAmount;
-                output.push({
-                    netDebtor,
-                    netCreditor,
-                    totalAmountSent: totalAmountSent,
-                    totalReverseAmount: totalReverseAmount,
-                    netSettlementAmount
-                });
-            });
+          // Calculate net settlement amount and format the output
+          const output = [];
+          transactionsMap.forEach(transaction => {
+              const { netDebtor, netCreditor, totalAmountSent, totalReverseAmount } = transaction;
+              const netSettlementAmount = totalAmountSent + totalReverseAmount;
+              output.push({
+                  netDebtor,
+                  netCreditor,
+                  totalAmountSent: totalAmountSent,
+                  totalReverseAmount: totalReverseAmount,
+                  netSettlementAmount
+              });
+          });
 
-            return output;
-        }
-
+          return output;
+      }
 
       const calculatedSettlementRows = calculateNetSettlement(settlementParticipantCurrencyIdsResult)
 
@@ -633,175 +630,203 @@ spec:
       }
     %>
 
-    <body data-json="<%= JSON.stringify(dataForJson) %>" >
+    <body data-json="<%= JSON.stringify(dataForJson) %>">
       <div class="container">
-      <div class="header">
-      <h1>DRPP Bilateral Net Settlement Report</h1>
-      <img src="" alt="Logo">
+        <!-- Header Section -->
+        <div class="header">
+          <h1>DRPP Bilateral Net Settlement Report</h1>
+          <img src="" alt="Logo">
+        </div>
+
+        <!-- Settlement Summary Section -->
+        <div class="summary">
+          <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
+          <p>State: <%= settlementInfo?.currentState %></p>
+          <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>
+          <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate.toISOString() %></p>
+          <p>Created Date: <%= settlementInfo?.createdDate.toISOString() %></p>
+          <p>Last State Update: <%= settlementInfo?.lastStateUpdate.toISOString() %></p>
+        </div>
+
+        <%
+          // Remove duplicate FX entries by determiningTransferId
+          const fxSeen = new Set();
+          const fxDuplicates = [];
+          const filteredSettlementParticipantCurrencyIdsResultExternalParticipants = [];
+          for (const entry of settlementParticipantCurrencyIdsResultExternalParticipants) {
+            if (entry.isFxTransfer && entry.determiningTransferId) {
+              const key = entry.determiningTransferId;
+              if (fxSeen.has(key)) {
+                fxDuplicates.push(entry);
+                continue;
+              }
+              fxSeen.add(key);
+            }
+            filteredSettlementParticipantCurrencyIdsResultExternalParticipants.push(entry);
+          }
+
+          // Helper to get external participant name or fallback to participantCurrencyId name
+          function getExternalParticipantDisplayName(externalParticipantId, participantCurrencyId) {
+            // Only use external participant if the participantCurrencyId is a proxy
+            const pc = allParticipantCurrencyIds.find(x => x.participantCurrencyId === participantCurrencyId);
+            if (pc && pc.isProxy && externalParticipantId && externalParticipantIdMap[externalParticipantId]) {
+              return externalParticipantIdMap[externalParticipantId].externalParticipantName;
+            }
+            if (pc) {
+              return pc.name;
+            }
+            return participantCurrencyId || '-';
+          }
+        %>
+
+        <!-- Settlement Table -->
+        <table id='settlement-table' cellpadding='0' cellspacing='0'>
+          <tbody>
+            <tr>
+              <th>Net Debtor</th>
+              <th>Net Creditor</th>
+              <th>Currency</th>
+              <th>Total Sent Amount</th>
+              <th>Total Received Amount</th>
+              <th>Net Settlement Amount</th>
+            </tr>
+            <% for (let sd of calculatedSettlementRowsWithDetails) { %>
+              <tr>
+                <td><%= sd.payerParticipantCurrencyDetails.name %></td>
+                <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
+                <td><%= sd.payeeParticipantCurrencyDetails.currencyId %></td>
+                <td><%= sd.totalAmountSent %></td>
+                <td>
+                  <%= sd.totalReverseAmount >= 0 ? `${sd.totalReverseAmount}` : `(${-sd.totalReverseAmount})` %>
+                </td>
+                <td>
+                  <% if (sd.netSettlementAmount < 0) { %>
+                    (<%= Math.abs(sd.netSettlementAmount) %>)
+                  <% } else { %>
+                    <%= sd.netSettlementAmount %>
+                  <% } %>
+                </td>
+              </tr>
+              <%
+                // Group subrows by debtor/creditor external participant, currency, and direction
+                const subRowsRaw = filteredSettlementParticipantCurrencyIdsResultExternalParticipants.filter(
+                  m =>
+                    (m.debtorParticipantCurrencyId === sd.netDebtor && m.creditorParticipantCurrencyId === sd.netCreditor) ||
+                    (m.debtorParticipantCurrencyId === sd.netCreditor && m.creditorParticipantCurrencyId === sd.netDebtor)
+                );
+
+                // Group by debtor/creditor external participant id and direction
+                const subRowsMap = new Map();
+                for (let sub of subRowsRaw) {
+                  // Determine direction for grouping
+                  let isSameDirection = sub.debtorParticipantCurrencyId === sd.netDebtor && sub.creditorParticipantCurrencyId === sd.netCreditor;
+
+                  // Only use external participant if participantCurrencyId is a proxy
+                  const debtorId = isSameDirection ? sub.debtorExternalParticipantId : sub.creditorExternalParticipantId;
+                  const creditorId = isSameDirection ? sub.creditorExternalParticipantId : sub.debtorExternalParticipantId;
+                  const debtorParticipantCurrencyId = isSameDirection ? sub.debtorParticipantCurrencyId : sub.creditorParticipantCurrencyId;
+                  const creditorParticipantCurrencyId = isSameDirection ? sub.creditorParticipantCurrencyId : sub.debtorParticipantCurrencyId;
+
+                  const debtorName = getExternalParticipantDisplayName(debtorId, debtorParticipantCurrencyId);
+                  const creditorName = getExternalParticipantDisplayName(creditorId, creditorParticipantCurrencyId);
+
+                  const key = `${debtorName}|||${creditorName}|||${isSameDirection ? 'fwd' : 'rev'}`;
+                  if (!subRowsMap.has(key)) {
+                    subRowsMap.set(key, {
+                      debtorId,
+                      creditorId,
+                      debtorName,
+                      creditorName,
+                      sentAmount: 0,
+                      receivedAmount: 0,
+                      isFxTransfer: false,
+                      currencyId: sd.payeeParticipantCurrencyDetails.currencyId
+                    });
+                  }
+                  const group = subRowsMap.get(key);
+                  // Sum amounts based on direction
+                  if (isSameDirection) {
+                    group.sentAmount += parseFloat(sub.debtorTotalAmount);
+                  } else {
+                    group.receivedAmount += parseFloat(sub.debtorTotalAmount) * -1;
+                  }
+                  group.isFxTransfer = group.isFxTransfer || !!sub.isFxTransfer;
+                }
+
+                // Merge subrows with same debtorName and creditorName (regardless of direction)
+                const mergedSubRowsMap = new Map();
+                for (let group of subRowsMap.values()) {
+                  const mergeKey = `${group.debtorName}|||${group.creditorName}`;
+                  if (!mergedSubRowsMap.has(mergeKey)) {
+                    mergedSubRowsMap.set(mergeKey, {
+                      debtorName: group.debtorName,
+                      creditorName: group.creditorName,
+                      sentAmount: 0,
+                      receivedAmount: 0,
+                      currencyId: group.currencyId,
+                      isFxTransfer: group.isFxTransfer
+                    });
+                  }
+                  const merged = mergedSubRowsMap.get(mergeKey);
+                  merged.sentAmount += group.sentAmount;
+                  merged.receivedAmount += group.receivedAmount;
+                  merged.isFxTransfer = merged.isFxTransfer || group.isFxTransfer;
+                }
+                const subRowsGrouped = Array.from(mergedSubRowsMap.values());
+
+                // Render subrows
+                for (let sub of subRowsGrouped) {
+                  // Calculate net settlement for subrow using sent/received
+                  let netAmount;
+                  if (sub.sentAmount && sub.receivedAmount) {
+                    netAmount = sub.sentAmount + sub.receivedAmount;
+                  } else if (sub.sentAmount) {
+                    netAmount = sub.sentAmount;
+                  } else if (sub.receivedAmount) {
+                    netAmount = sub.receivedAmount;
+                  } else {
+                    netAmount = 0;
+                  }
+              %>
+                <tr style="background:#f9f9f9;">
+                  <td class="smallFont">&nbsp;&nbsp;↳ <%= sub.debtorName %></td>
+                  <td class="smallFont"><%= sub.creditorName %></td>
+                  <td class="smallFont"><%= sub.currencyId %></td>
+                  <td class="smallFont"><%= sub.sentAmount ? sub.sentAmount : '-' %></td>
+                  <td class="smallFont">
+                    <% if (sub.receivedAmount) { %>
+                      <%= sub.receivedAmount < 0 ? `(${Math.abs(sub.receivedAmount)})` : sub.receivedAmount %>
+                    <% } else { %>
+                      -
+                    <% } %>
+                  </td>
+                  <td class="smallFont">
+                    <% if (netAmount < 0) { %>
+                      (<%= Math.abs(netAmount) %>)
+                    <% } else { %>
+                      <%= netAmount %>
+                    <% } %>
+                    <br/>
+                  </td>
+                </tr>
+              <% } %>
+            <% } %>
+          </tbody>
+        </table>
+
+        <!-- Debug Output Section
+        <pre>
+          <code>
+          <%= JSON.stringify(filteredSettlementParticipantCurrencyIdsResultExternalParticipants, null, 2) %>
+          </code>
+        </pre>
+        -->
+
+        <!-- Footer Section -->
+        <div class="footer">
+          <p>Generated on: <%= (new Date()).toUTCString() %></p>
+        </div>
       </div>
-
-      <div class="summary">
-      <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
-      <p>State: <%= settlementInfo?.currentState %></p>
-      <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>
-      <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate.toISOString() %></p>
-      <p>Created Date: <%= settlementInfo?.createdDate.toISOString() %></p>
-      <p>Last State Update: <%= settlementInfo?.lastStateUpdate.toISOString() %></p>
-      </div>
-
-      <%
-      // Remove duplicate FX entries by determiningTransferId
-      const fxSeen = new Set();
-      const fxDuplicates = [];
-      const filteredSettlementParticipantCurrencyIdsResultExternalParticipants = [];
-      for (const entry of settlementParticipantCurrencyIdsResultExternalParticipants) {
-        if (entry.isFxTransfer && entry.determiningTransferId) {
-        const key = entry.determiningTransferId;
-        if (fxSeen.has(key)) {
-          fxDuplicates.push(entry);
-          continue;
-        }
-        fxSeen.add(key);
-        }
-        filteredSettlementParticipantCurrencyIdsResultExternalParticipants.push(entry);
-      }
-      %>
-
-      <table id='settlement-table' cellpadding='0' cellspacing='0'>
-      <tbody>
-      <tr>
-      <th>Net Debtor</th>
-      <th>Net Creditor</th>
-      <th>Currency</th>
-      <th>Total Sent Amount</th>
-      <th>Total Received Amount</th>
-      <th>Net Settlement Amount</th>
-      </tr>
-      <% for(let sd of calculatedSettlementRowsWithDetails) { %>
-      <tr>
-      <td><%= sd.payerParticipantCurrencyDetails.name %></td>
-      <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
-      <td><%= sd.payeeParticipantCurrencyDetails.currencyId %></td>
-      <td><%= sd.totalAmountSent %></td>
-      <td><%= sd.totalReverseAmount >= 0 ? `${sd.totalReverseAmount}` : `(${-sd.totalReverseAmount})` %></td>
-      <td>
-      <% if (sd.netSettlementAmount < 0) { %>
-      (<%= Math.abs(sd.netSettlementAmount) %>)
-      <% } else { %>
-      <%= sd.netSettlementAmount %>
-      <% } %>
-      </td>
-      </tr>
-      <%
-      // Group subrows by debtorExternalParticipantName and creditorExternalParticipantName, summing their amounts
-      const subRowsRaw = filteredSettlementParticipantCurrencyIdsResultExternalParticipants.filter(
-      m =>
-      (m.debtorParticipantCurrencyId === sd.netDebtor && m.creditorParticipantCurrencyId === sd.netCreditor) ||
-      (m.debtorParticipantCurrencyId === sd.netCreditor && m.creditorParticipantCurrencyId === sd.netDebtor)
-      );
-
-      // Group by external participant names and direction
-      const subRowsGrouped = [];
-      const subRowsMap = new Map();
-      for (let sub of subRowsRaw) {
-      // Determine direction for grouping
-      const isSameDirection = sub.debtorParticipantCurrencyId === sd.netDebtor && sub.creditorParticipantCurrencyId === sd.netCreditor;
-      const debtorName = isSameDirection ? sub.debtorExternalParticipantName : sub.creditorExternalParticipantName;
-      const creditorName = isSameDirection ? sub.creditorExternalParticipantName : sub.debtorExternalParticipantName;
-      const key = `${debtorName}|||${creditorName}|||${isSameDirection ? 'fwd' : 'rev'}`;
-      if (!subRowsMap.has(key)) {
-      subRowsMap.set(key, {
-      debtorName,
-      creditorName,
-      sentAmount: 0,
-      receivedAmount: 0,
-      isFxTransfer: false,
-      transferReferences: [],
-      transferReferencesFx: [],
-      currencyId: sd.payeeParticipantCurrencyDetails.currencyId
-      });
-      }
-      const group = subRowsMap.get(key);
-      // Sum amounts based on direction
-      if (isSameDirection) {
-      group.sentAmount += parseFloat(sub.debtorTotalAmount);
-      } else {
-      group.receivedAmount += parseFloat(sub.debtorTotalAmount) * -1;
-      }
-      group.isFxTransfer = group.isFxTransfer || !!sub.isFxTransfer;
-      // Track transfer references and if they are FX
-      group.transferReferences.push({
-      ref: sub.debtorTransferReference,
-      isFx: !!sub.isFxTransfer
-      });
-      }
-      subRowsMap.forEach(v => subRowsGrouped.push(v));
-
-      for (let sub of subRowsGrouped) {
-      // Calculate net settlement for subrow using sent/received
-      let netAmount;
-      if (sub.sentAmount && sub.receivedAmount) {
-      netAmount = sub.sentAmount + sub.receivedAmount;
-      } else if (sub.sentAmount) {
-      netAmount = sub.sentAmount;
-      } else if (sub.receivedAmount) {
-      netAmount = sub.receivedAmount;
-      } else {
-      netAmount = 0;
-      }
-      %>
-      <tr style="background:#f9f9f9;">
-      <td class="smallFont">&nbsp;&nbsp;↳ <%= sub.debtorName %></td>
-      <td class="smallFont"><%= sub.creditorName %></td>
-      <td class="smallFont"><%= sub.currencyId %></td>
-      <td class="smallFont"><%= sub.sentAmount ? sub.sentAmount : '-' %></td>
-      <td class="smallFont">
-      <% if (sub.receivedAmount) { %>
-      <%= sub.receivedAmount < 0 ? `(${Math.abs(sub.receivedAmount)})` : sub.receivedAmount %>
-      <% } else { %>
-      -
-      <% } %>
-      </td>
-      <td class="smallFont">
-      <% if (netAmount < 0) { %>
-      (<%= Math.abs(netAmount) %>)
-      <% } else { %>
-      <%= netAmount %>
-      <% } %>
-      <br/>
-      <span class="smallFont" title="Transfer Reference">
-      Ref:
-      <% for (let i = 0; i < sub.transferReferences.length; i++) { %>
-        <%= (sub.transferReferences[i].ref + '').substring(0, 100) %>
-        <% if (sub.transferReferences[i].isFx) { %>
-          <span title="FX Transfer" style="color:#007bff;">FX</span>
-        <% } %>
-        <% if (i < sub.transferReferences.length - 1) { %>, <% } %>
-      <% } %>
-      </span>
-      </td>
-      </tr>
-      <% } %>
-      <% } %>
-      </tbody>
-      </table>
-
-      <pre>
-      <b>Filtered settlementParticipantCurrencyIdsResultExternalParticipants:</b>
-      <code>
-      <%= JSON.stringify(filteredSettlementParticipantCurrencyIdsResultExternalParticipants, null, 2) %>
-      </code>
-      <b>Duplicate FX entries (by determiningTransferId):</b>
-      <code>
-      <%= JSON.stringify(fxDuplicates, null, 2) %>
-      </code>
-      </pre>
-
-      <div class="footer">
-      <p>Generated on: <%= (new Date()).toUTCString() %></p>
-      </div>
-      </div>
-
     </body>
 
     </html>
