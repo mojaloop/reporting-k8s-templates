@@ -220,107 +220,104 @@ spec:
           extDebtorInitiating.*,
           extCreditorPayee.*,
           extCreditorCounterParty.*
-        FROM
-          (
-        SELECT
-          pc.participantCurrencyId,
-          pc.participantId as participantId,
-          p.name as participantName,
-          unioned.transferId,
-          unioned.uniqueLegId,
-          unioned.amount,
-          unioned.isFxTransfer,
-          unioned.determiningTransferId
         FROM (
           SELECT
-        ppc.participantCurrencyId,
-        ppc.change as amount,
-        tf.settlementWindowId,
-        tf.transferId AS transferId,
-        tf.transferId AS uniqueLegId,
-        0 as isFxTransfer,
-        tf.transferId as determiningTransferId
-          FROM
-        transferFulfilment AS tf
-        INNER JOIN transferStateChange AS tsc ON tsc.transferId = tf.transferId
-        INNER JOIN participantPositionChange AS ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
-        INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-        INNER JOIN settlementSettlementWindow ssw ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            pc.participantCurrencyId,
+            pc.participantId as participantId,
+            p.name as participantName,
+            unioned.transferId,
+            unioned.uniqueLegId,
+            unioned.amount,
+            unioned.isFxTransfer,
+            unioned.determiningTransferId
+          FROM (
+            SELECT
+              ppc.participantCurrencyId,
+              ppc.change as amount,
+              tf.settlementWindowId,
+              tf.transferId AS transferId,
+              tf.transferId AS uniqueLegId,
+              0 as isFxTransfer,
+              tf.transferId as determiningTransferId
+            FROM
+              transferFulfilment AS tf
+              INNER JOIN transferStateChange AS tsc ON tsc.transferId = tf.transferId
+              INNER JOIN participantPositionChange AS ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
+              INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+              INNER JOIN settlementSettlementWindow ssw ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
 
-          UNION ALL
+            UNION ALL
 
-          SELECT
-        ppc.participantCurrencyId,
-        ppc.change as amount,
-        fxtf.settlementWindowId,
-        fxt1.determiningTransferId AS transferId,
-        fxt1.commitRequestId AS uniqueLegId,
-        1 as isFxTransfer,
-        fxt1.determiningTransferId as determiningTransferId
-          FROM
-        fxTransferFulfilment AS fxtf
-        INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
-        INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
-        INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-        INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-        INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-        ) AS unioned
-        INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
-        INNER JOIN participant AS p ON pc.participantId = p.participantId
-        WHERE unioned.amount > 0
+            SELECT
+              ppc.participantCurrencyId,
+              ppc.change as amount,
+              fxtf.settlementWindowId,
+              fxt1.determiningTransferId AS transferId,
+              fxt1.commitRequestId AS uniqueLegId,
+              1 as isFxTransfer,
+              fxt1.determiningTransferId as determiningTransferId
+            FROM
+              fxTransferFulfilment AS fxtf
+              INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
+              INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
+              INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+              INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+              INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+          ) AS unioned
+            INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
+            INNER JOIN participant AS p ON pc.participantId = p.participantId
+            WHERE unioned.amount > 0
           ) as result1
-        INNER JOIN
-          (
-        SELECT
-          pc.participantCurrencyId,
-          pc.participantId as participantId,
-          p.name as participantName,
-          unioned.transferId,
-          unioned.uniqueLegId,
-          unioned.amount,
-          unioned.isFxTransfer,
-          unioned.determiningTransferId
-        FROM (
-          -- Standard transfer fulfilments (non-FX)
+        INNER JOIN (
           SELECT
-        ppc.participantCurrencyId,
-        ppc.change as amount,
-        tf.settlementWindowId,
-        tf.transferId AS transferId,
-        tf.transferId AS uniqueLegId,
-        0 as isFxTransfer,
-        tf.transferId as determiningTransferId
-          FROM
-        transferFulfilment AS tf
-        INNER JOIN transferStateChange AS tsc ON tsc.transferId = tf.transferId
-        INNER JOIN participantPositionChange AS ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
-        INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-        INNER JOIN settlementSettlementWindow ssw ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            pc.participantCurrencyId,
+            pc.participantId as participantId,
+            p.name as participantName,
+            unioned.transferId,
+            unioned.uniqueLegId,
+            unioned.amount,
+            unioned.isFxTransfer,
+            unioned.determiningTransferId
+          FROM (
+            -- Standard transfer fulfilments (non-FX)
+            SELECT
+              ppc.participantCurrencyId,
+              ppc.change as amount,
+              tf.settlementWindowId,
+              tf.transferId AS transferId,
+              tf.transferId AS uniqueLegId,
+              0 as isFxTransfer,
+              tf.transferId as determiningTransferId
+            FROM
+              transferFulfilment AS tf
+              INNER JOIN transferStateChange AS tsc ON tsc.transferId = tf.transferId
+              INNER JOIN participantPositionChange AS ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
+              INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+              INNER JOIN settlementSettlementWindow ssw ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            UNION ALL
 
-          UNION ALL
-
-          -- FX transfer fulfilments (FX)
-          SELECT
-        ppc.participantCurrencyId,
-        ppc.change as amount,
-        fxtf.settlementWindowId,
-        fxt1.determiningTransferId AS transferId,
-        fxt1.commitRequestId AS uniqueLegId,
-        1 as isFxTransfer,
-        fxt1.determiningTransferId as determiningTransferId
-          FROM
-        fxTransferFulfilment AS fxtf
-        INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
-        INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
-        INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-        INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-        INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-        ) AS unioned
-          INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
-          INNER JOIN participant AS p ON pc.participantId = p.participantId
-          WHERE unioned.amount < 0
-        ) as result2
-        ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
+            -- FX transfer fulfilments (FX)
+            SELECT
+              ppc.participantCurrencyId,
+              ppc.change as amount,
+              fxtf.settlementWindowId,
+              fxt1.determiningTransferId AS transferId,
+              fxt1.commitRequestId AS uniqueLegId,
+              1 as isFxTransfer,
+              fxt1.determiningTransferId as determiningTransferId
+            FROM
+              fxTransferFulfilment AS fxtf
+              INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
+              INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
+              INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+              INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+              INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            ) AS unioned
+              INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
+              INNER JOIN participant AS p ON pc.participantId = p.participantId
+              WHERE unioned.amount < 0
+          ) as result2
+          ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
 
         LEFT JOIN (
           SELECT
@@ -337,7 +334,7 @@ spec:
           INNER JOIN participant p ON tp.participantId = p.participantId
           WHERE tp.transferParticipantRoleTypeId IN ('1', 'PAYER_DFSP')
         ) as extDebtorPayer
-        ON result1.transferId = extDebtorPayer.transferId AND result1.participantCurrencyId = extDebtorPayer.participantCurrencyId
+        ON result1.transferId = extDebtorPayer.transferId AND result1.participantId = extDebtorPayer.participantId
 
         LEFT JOIN (
           SELECT
@@ -355,6 +352,8 @@ spec:
           INNER JOIN participant p ON ftp.participantId = p.participantId
           WHERE ftp.transferParticipantRoleTypeId IN ('6', 'INITIATING_FSP')
         AND ftp.commitRequestId IS NOT NULL
+        AND ftp.participantCurrencyId IS NOT NULL
+        AND ftp.fxParticipantCurrencyTypeId IS NOT NULL
         ) as extDebtorInitiating
         ON result1.uniqueLegId = extDebtorInitiating.transferId AND result1.participantId = extDebtorInitiating.participantId
 
@@ -391,6 +390,8 @@ spec:
           INNER JOIN participant p ON ftp.participantId = p.participantId
           WHERE ftp.transferParticipantRoleTypeId IN ('7', 'COUNTER_PARTY_FSP')
         AND ftp.commitRequestId IS NOT NULL
+        AND ftp.participantCurrencyId IS NOT NULL
+        AND ftp.fxParticipantCurrencyTypeId IS NOT NULL
         ) as extCreditorCounterParty
         ON result2.uniqueLegId = extCreditorCounterParty.transferId AND result2.participantId = extCreditorCounterParty.participantId;
   template: |
