@@ -483,7 +483,9 @@ spec:
       <div class="container" data-json="<%= JSON.stringify(legacyTransferReport) %>" >
         <div class="header">
             <h1>FSP Reconciliation Report</h1>
-            <img src="" alt="Logo">
+            {{- if .Values.templates.topBarLogoUrl -}}
+            <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
+            {{- end }}
         </div>
         <table>
             <tr>

@@ -317,7 +317,9 @@ spec:
         <div class="container">
             <div class="header">
                 <h1>Multilateral Settlement Report</h1>
-                <img src="" alt="Logo">
+                {{- if .Values.templates.topBarLogoUrl -}}
+                <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
+                {{- end }}
             </div>
 
             <div class="summary">

@@ -1,7 +1,9 @@
+{{- if .Values.templates.bilateralSettlementExternalParticipants -}}
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: reporting-bilateral-settlements-external-participants
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     params:
@@ -635,7 +637,9 @@ spec:
         <!-- Header Section -->
         <div class="header">
           <h1>Bilateral Settlement Report for Regional DRPP</h1>
-          <img src="{{logoUrl}}" alt="Logo">
+          {{- if .Values.templates.topBarLogoUrl -}}
+          <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
+          {{- end }}
         </div>
 
         <!-- Settlement Summary Section -->
@@ -818,3 +822,4 @@ spec:
 
     </html>
 
+{{- end }}
