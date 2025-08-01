@@ -480,7 +480,7 @@ spec:
             }
 
             tr:nth-child(even) {
-                background-color: #f2f2f2;
+                background-color: #1980a940;
             }
 
             .smallFont {
@@ -635,7 +635,7 @@ spec:
         <!-- Header Section -->
         <div class="header">
           <h1>Bilateral Settlement Report for Regional DRPP</h1>
-          <img src="" alt="Logo">
+          <img src="{{logoUrl}}" alt="Logo">
         </div>
 
         <!-- Settlement Summary Section -->
@@ -772,8 +772,11 @@ spec:
                     netAmount = 0;
                   }
               %>
-                <tr style="background:#f9f9f9;">
-                  <td class="smallFont">&nbsp;&nbsp;↳ <%= sub.debtorName %></td>
+                <tr style="background:#ffffff;">
+                    <td class="smallFont" style="position:relative; padding-left:0;">
+                      <div style="position:absolute; left:0; top:0; bottom:0; width:10%; background:#f2f2f2; z-index:0;"></div>
+                      <span style="margin:10%; position:relative; z-index:1;">&nbsp;&nbsp; <%= sub.debtorName %></span>
+                    </td>
                   <td class="smallFont"><%= sub.creditorName %></td>
                   <td class="smallFont"><%= sub.currencyId %></td>
                   <td class="smallFont"><%= sub.sentAmount ? sub.sentAmount : '-' %></td>
@@ -798,7 +801,7 @@ spec:
           </tbody>
         </table>
 
-        <!-- Debug Output Section
+        <!--
         <pre>
           <code>
           <%= JSON.stringify(settlementParticipantCurrencyIdsResultExternalParticipants, null, 2) %>
