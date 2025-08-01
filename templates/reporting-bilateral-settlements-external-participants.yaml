@@ -649,22 +649,6 @@ spec:
         </div>
 
         <%
-          // Remove duplicate FX entries by determiningTransferId
-          const fxSeen = new Set();
-          const fxDuplicates = [];
-          const filteredSettlementParticipantCurrencyIdsResultExternalParticipants = [];
-          for (const entry of settlementParticipantCurrencyIdsResultExternalParticipants) {
-            if (entry.isFxTransfer && entry.determiningTransferId) {
-              const key = entry.determiningTransferId;
-              if (fxSeen.has(key)) {
-                fxDuplicates.push(entry);
-                continue;
-              }
-              fxSeen.add(key);
-            }
-            filteredSettlementParticipantCurrencyIdsResultExternalParticipants.push(entry);
-          }
-
           // Helper to get external participant name or fallback to participantCurrencyId name
           function getExternalParticipantDisplayName(externalParticipantId, participantCurrencyId) {
             // Only use external participant if the participantCurrencyId is a proxy
@@ -709,7 +693,7 @@ spec:
               </tr>
               <%
                 // Group subrows by debtor/creditor external participant, currency, and direction
-                const subRowsRaw = filteredSettlementParticipantCurrencyIdsResultExternalParticipants.filter(
+                const subRowsRaw = settlementParticipantCurrencyIdsResultExternalParticipants.filter(
                   m =>
                     (m.debtorParticipantCurrencyId === sd.netDebtor && m.creditorParticipantCurrencyId === sd.netCreditor) ||
                     (m.debtorParticipantCurrencyId === sd.netCreditor && m.creditorParticipantCurrencyId === sd.netDebtor)
@@ -817,7 +801,7 @@ spec:
         <!-- Debug Output Section
         <pre>
           <code>
-          <%= JSON.stringify(filteredSettlementParticipantCurrencyIdsResultExternalParticipants, null, 2) %>
+          <%= JSON.stringify(settlementParticipantCurrencyIdsResultExternalParticipants, null, 2) %>
           </code>
         </pre>
         -->
