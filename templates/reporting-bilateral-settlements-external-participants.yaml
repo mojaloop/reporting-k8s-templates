@@ -481,7 +481,7 @@ spec:
                 font-size: 0.9em;
             }
 
-            tr:nth-child(even) {
+            .main-row {
                 background-color: #1980a940;
             }
 
@@ -679,7 +679,7 @@ spec:
               <th>Net Settlement Amount</th>
             </tr>
             <% for (let sd of calculatedSettlementRowsWithDetails) { %>
-              <tr>
+              <tr class="main-row">
                 <td><%= sd.payerParticipantCurrencyDetails.name %></td>
                 <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
                 <td><%= sd.payeeParticipantCurrencyDetails.currencyId %></td>
