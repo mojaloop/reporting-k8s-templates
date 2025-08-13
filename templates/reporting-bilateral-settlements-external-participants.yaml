@@ -1,7 +1,9 @@
+{{- if .Values.templates.bilateralSettlementExternalParticipants -}}
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: reporting-bilateral-settlements-external-participants
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     params:
@@ -929,3 +931,4 @@ spec:
       </div>
     </body>
     </html>
+{{- end }}
