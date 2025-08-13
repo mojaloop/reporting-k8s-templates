@@ -1,9 +1,7 @@
-{{- if .Values.templates.bilateralSettlementExternalParticipants -}}
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: reporting-bilateral-settlements-external-participants
-  {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     params:
@@ -215,7 +213,7 @@ spec:
                 ppc.participantCurrencyId,
                 ppc.change,
                 COALESCE(ep.name, pc.participantId) as pid,
-                ep.externalParticipantId,
+                NULL as externalParticipantId,
                 tf.settlementWindowId,
                 tf.transferId AS transferId,
                 tf.transferId AS uniqueLegId
@@ -611,13 +609,17 @@ spec:
           return output;
       }
 
-      const calculatedSettlementRows = calculateNetSettlement(settlementParticipantCurrencyIdsResult)
+      const calculatedSettlementRows = calculateNetSettlement(settlementParticipantCurrencyIdsResult);
 
       const calculatedSettlementRowsWithDetails = calculatedSettlementRows.map((calculatedSettlementRow) => {
         const debtorParticipantCurrencyId = calculatedSettlementRow.netDebtor;
         const creditorParticipantCurrencyId = calculatedSettlementRow.netCreditor;
-        const payerParticipantCurrencyDetails = allParticipantCurrencyIds.find((participantCurrencyId) => participantCurrencyId.participantCurrencyId === debtorParticipantCurrencyId);
-        const payeeParticipantCurrencyDetails = allParticipantCurrencyIds.find((participantCurrencyId) => participantCurrencyId.participantCurrencyId === creditorParticipantCurrencyId);
+        const payerParticipantCurrencyDetails = allParticipantCurrencyIds.find(
+          (participantCurrencyId) => participantCurrencyId.participantCurrencyId === debtorParticipantCurrencyId
+        );
+        const payeeParticipantCurrencyDetails = allParticipantCurrencyIds.find(
+          (participantCurrencyId) => participantCurrencyId.participantCurrencyId === creditorParticipantCurrencyId
+        );
         return {
           ...calculatedSettlementRow,
           payerParticipantCurrencyDetails,
@@ -626,9 +628,113 @@ spec:
       });
 
       const settlementInfo = settlementInfoResult[0];
+
+      // Build an array of objects representing the actual table data
+      const tableDataRows = calculatedSettlementRowsWithDetails.map(row => ({
+        netDebtor: row.payerParticipantCurrencyDetails?.name || row.netDebtor,
+        netCreditor: row.payeeParticipantCurrencyDetails?.name || row.netCreditor,
+        currency: row.payeeParticipantCurrencyDetails?.currencyId || '-',
+        totalSentAmount: row.totalAmountSent,
+        totalReceivedAmount: row.totalReverseAmount,
+        netSettlementAmount: row.netSettlementAmount
+      }));
+
+      // Build sub row data for each main row
+      const tableSubRows = calculatedSettlementRowsWithDetails.map(sd => {
+        // Group subrows by debtor/creditor external participant, currency, and direction
+        const subRowsRaw = settlementParticipantCurrencyIdsResultExternalParticipants.filter(
+          m =>
+        (m.debtorParticipantCurrencyId === sd.netDebtor && m.creditorParticipantCurrencyId === sd.netCreditor) ||
+        (m.debtorParticipantCurrencyId === sd.netCreditor && m.creditorParticipantCurrencyId === sd.netDebtor)
+        );
+
+        // Group by debtor/creditor external participant id and direction
+        const subRowsMap = new Map();
+        for (let sub of subRowsRaw) {
+          let isSameDirection = sub.debtorParticipantCurrencyId === sd.netDebtor && sub.creditorParticipantCurrencyId === sd.netCreditor;
+          const debtorId = isSameDirection ? sub.debtorExternalParticipantId : sub.creditorExternalParticipantId;
+          const creditorId = isSameDirection ? sub.creditorExternalParticipantId : sub.debtorExternalParticipantId;
+          const debtorParticipantCurrencyId = isSameDirection ? sub.debtorParticipantCurrencyId : sub.creditorParticipantCurrencyId;
+          const creditorParticipantCurrencyId = isSameDirection ? sub.creditorParticipantCurrencyId : sub.debtorParticipantCurrencyId;
+
+          const debtorName = getExternalParticipantDisplayName(debtorId, debtorParticipantCurrencyId);
+          const creditorName = getExternalParticipantDisplayName(creditorId, creditorParticipantCurrencyId);
+
+          const key = `${debtorName}|||${creditorName}|||${isSameDirection ? 'fwd' : 'rev'}`;
+          if (!subRowsMap.has(key)) {
+            subRowsMap.set(key, {
+              debtorId,
+              creditorId,
+              debtorName,
+              creditorName,
+              sentAmount: 0,
+              receivedAmount: 0,
+              currencyId: sd.payeeParticipantCurrencyDetails.currencyId
+        });
+          }
+          const group = subRowsMap.get(key);
+          if (isSameDirection) {
+            group.sentAmount += parseFloat(sub.debtorTotalAmount);
+          } else {
+            group.receivedAmount += parseFloat(sub.debtorTotalAmount) * -1;
+          }
+        }
+
+        // Merge subrows with same debtorName and creditorName (regardless of direction)
+        const mergedSubRowsMap = new Map();
+        for (let group of subRowsMap.values()) {
+          const mergeKey = `${group.debtorName}|||${group.creditorName}`;
+          if (!mergedSubRowsMap.has(mergeKey)) {
+            mergedSubRowsMap.set(mergeKey, {
+            debtorName: group.debtorName,
+            creditorName: group.creditorName,
+            sentAmount: 0,
+            receivedAmount: 0,
+            currencyId: group.currencyId,
+        });
+          }
+          const merged = mergedSubRowsMap.get(mergeKey);
+          merged.sentAmount += group.sentAmount;
+          merged.receivedAmount += group.receivedAmount;
+        }
+        const subRowsGrouped = Array.from(mergedSubRowsMap.values());
+
+        // Format subrows for JSON
+        return subRowsGrouped.map(sub => {
+          let netAmount;
+          if (sub.sentAmount && sub.receivedAmount) {
+            netAmount = sub.sentAmount + sub.receivedAmount;
+          } else if (sub.sentAmount) {
+            netAmount = sub.sentAmount;
+          } else if (sub.receivedAmount) {
+            netAmount = sub.receivedAmount;
+          } else {
+            netAmount = 0;
+          }
+          return {
+            debtorName: sub.debtorName,
+            creditorName: sub.creditorName,
+            currency: sub.currencyId,
+            sentAmount: sub.sentAmount,
+            receivedAmount: sub.receivedAmount,
+            netSettlementAmount: netAmount,
+          };
+        });
+      });
+
       const dataForJson = {
         settlementInfo,
-        calculatedSettlementRowsWithDetails
+        tableColumns: [
+          { key: "netDebtor", label: "Net Debtor" },
+          { key: "netCreditor", label: "Net Creditor" },
+          { key: "currency", label: "Currency" },
+          { key: "totalSentAmount", label: "Total Sent Amount" },
+          { key: "totalReceivedAmount", label: "Total Received Amount" },
+          { key: "netSettlementAmount", label: "Net Settlement Amount" }
+        ],
+        tableDataRows, // <-- actual data used in the table
+        tableSubRows, // <-- array of arrays, each for a main row
+        note: "Each entry in tableDataRows corresponds to a main settlement row, and its sub-rows are found at the same index in tableSubRows (i.e., tableSubRows[i] contains the sub-rows for tableDataRows[i])."
       }
     %>
 
@@ -671,6 +777,7 @@ spec:
         <table id='settlement-table' cellpadding='0' cellspacing='0'>
           <tbody>
             <tr>
+              <th style="display:none;">row-type</td>
               <th>Net Debtor</th>
               <th>Net Creditor</th>
               <th>Currency</th>
@@ -680,6 +787,7 @@ spec:
             </tr>
             <% for (let sd of calculatedSettlementRowsWithDetails) { %>
               <tr class="main-row">
+                <td style="display:none;">main-row</td>
                 <td><%= sd.payerParticipantCurrencyDetails.name %></td>
                 <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
                 <td><%= sd.payeeParticipantCurrencyDetails.currencyId %></td>
@@ -777,10 +885,11 @@ spec:
                   }
               %>
                 <tr style="background:#ffffff;">
-                    <td class="smallFont" style="position:relative; padding-left:0;">
-                      <div style="position:absolute; left:0; top:0; bottom:0; width:10%; background:#f2f2f2; z-index:0;"></div>
-                      <span style="margin:10%; position:relative; z-index:1;">&nbsp;&nbsp; <%= sub.debtorName %></span>
-                    </td>
+                  <td style="display:none;">sub-row</td>
+                  <td class="smallFont" style="position:relative; padding-left:0;">
+                    <div style="position:absolute; left:0; top:0; bottom:0; width:10%; background:#f2f2f2; z-index:0;"></div>
+                    <span style="margin:10%; position:relative; z-index:1;">&nbsp;&nbsp; <%= sub.debtorName %></span>
+                  </td>
                   <td class="smallFont"><%= sub.creditorName %></td>
                   <td class="smallFont"><%= sub.currencyId %></td>
                   <td class="smallFont"><%= sub.sentAmount ? sub.sentAmount : '-' %></td>
@@ -819,7 +928,4 @@ spec:
         </div>
       </div>
     </body>
-
     </html>
-
-{{- end }}
