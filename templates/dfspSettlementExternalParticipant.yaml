@@ -4,6 +4,12 @@ kind: MojaloopReport
 metadata:
   name: dfsp-settlement-external-participant
   {{ include "common.annotations" . | nindent 2 }}
+## NOTE: For transfer leg of fx transfers involving FXP to the receiving FSP's Proxy,
+## the externalParticipantId on the transferParticipant is set to that of the sending FSP.
+## This introduces inconsistencies in UNION operation output where the FXP is supposedly represented by the Sender FSP.
+## It is unclear if this is an entry mistake in the central ledger,
+## but this specific case will be ignored for now.
+## Referring to line: NULL as externalParticipantId
 spec:
   endpoint:
     params:
