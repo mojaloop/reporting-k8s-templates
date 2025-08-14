@@ -1,7 +1,7 @@
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  {{ include "common.annotations" . | nindent 2 }}
+  name: "dfsp-settlement-detail"
 spec:
   permission: report-dfsp-settlement-detail
   endpoint:
