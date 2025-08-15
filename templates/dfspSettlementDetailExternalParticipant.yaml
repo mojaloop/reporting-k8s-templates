@@ -1,7 +1,10 @@
+{{- if .Values.templates.dfspSettlementDetailExternalParticipant -}}
+
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: dfsp-settlement-detail-external-participant
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     params:
@@ -76,7 +79,8 @@ spec:
           result1.amount as debtorTotalAmount,
           result2.amount as creditorTotalAmount,
           result1.isFxTransfer as isFxTransfer,
-          result1.transferId as transferId
+          result1.transferId as transferId,
+          latestTransfer.latestStateChangeDate as latestStateChangeDate
         FROM
 
         (
@@ -255,12 +259,37 @@ spec:
           ORDER BY unioned.transferId
         ) as result2
         ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
+
+        LEFT JOIN (
+          SELECT
+            COALESCE(tsc.transferId, fxt.determiningTransferId) AS transferId,
+            MAX(COALESCE(tsc.createdDate, fxtsc.createdDate)) AS latestStateChangeDate
+            FROM transferStateChange AS tsc
+            LEFT JOIN fxTransferStateChange AS fxtsc
+            ON tsc.transferId = fxtsc.commitRequestId
+            LEFT JOIN fxTransfer AS fxt
+            ON fxtsc.commitRequestId = fxt.commitRequestId
+            WHERE tsc.transferId IN (
+              SELECT transferId FROM transferFulfilment WHERE settlementWindowId = (
+                SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+              )
+            )
+              OR fxtsc.commitRequestId IN (
+              SELECT commitRequestId FROM fxTransferFulfilment WHERE settlementWindowId = (
+                SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+              )
+            )
+            GROUP BY COALESCE(tsc.transferId, fxt.determiningTransferId)
+        ) AS latestTransfer
+        ON result1.transferId = latestTransfer.transferId
+
         WHERE
           (
           (result1.externalParticipantId = (SELECT externalParticipantId FROM externalParticipant WHERE name = :externalParticipantFspId))
           OR
           (result2.externalParticipantId = (SELECT externalParticipantId FROM externalParticipant WHERE name = :externalParticipantFspId))
           )
+        ORDER BY latestTransfer.latestStateChangeDate
         -- No GROUP BY, keep individual movements
         ;
   template: |
@@ -270,7 +299,7 @@ spec:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>DFSP Settlement Detail for <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %></title>
+        <title>External DFSP Settlement Detail for <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %></title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -448,29 +477,36 @@ spec:
           const senderCurrency = allParticipantCurrencyIds.find(x => x.participantCurrencyId === tx.debtorParticipantCurrencyId);
           const receiverCurrency = allParticipantCurrencyIds.find(x => x.participantCurrencyId === tx.creditorParticipantCurrencyId);
           return {
-        senderFspName: senderCurrency ? senderCurrency.name : 'N/A',
-        senderExternalFspName: tx.debtorExternalParticipantId ? (externalParticipantIdMap[tx.debtorExternalParticipantId]?.externalParticipantName || 'N/A') : 'N/A',
-        receiverFspName: receiverCurrency ? receiverCurrency.name : 'N/A',
-        receiverExternalFspName: tx.creditorExternalParticipantId ? (externalParticipantIdMap[tx.creditorExternalParticipantId]?.externalParticipantName || 'N/A') : 'N/A',
-        transferId: tx.transferId || 'N/A',
-        txType: tx.isFxTransfer ? 'Currency Conversion' : 'Transfer',
-        txNature: tx.isFxTransfer ? 'Payer initiated' : 'N/A',
-        lastModified: settlementInfo?.windowClosedDate ? new Date(settlementInfo.windowClosedDate).toISOString() : (settlementInfo?.windowOpenDate ? new Date(setlementInfo.windowOpenDate).toISOString() : null),
-        receivedAmount: tx.debtorTotalAmount < 0 ? Math.abs(tx.debtorTotalAmount) : 0,
-        sentAmount: tx.debtorTotalAmount > 0 ? tx.debtorTotalAmount : 0,
-        currency: senderCurrency ? senderCurrency.currencyId : 'N/A',
+            senderFspName: senderCurrency ? senderCurrency.name : 'N/A',
+            senderExternalFspName: tx.debtorExternalParticipantId ? (externalParticipantIdMap[tx.debtorExternalParticipantId]?.externalParticipantName || 'N/A') : 'N/A',
+            receiverFspName: receiverCurrency ? receiverCurrency.name : 'N/A',
+            receiverExternalFspName: tx.creditorExternalParticipantId ? (externalParticipantIdMap[tx.creditorExternalParticipantId]?.externalParticipantName || 'N/A') : 'N/A',
+            transferId: tx.transferId || 'N/A',
+            txType: tx.isFxTransfer ? 'Currency Conversion' : 'Transfer',
+            txNature: tx.isFxTransfer ? 'Payer initiated' : 'N/A',
+            lastModified: tx.latestStateChangeDate ? new Date(tx.latestStateChangeDate).toISOString() : '',
+            receivedAmount: tx.debtorExternalParticipantId === selectedExternalParticipant[0].externalParticipantId ? '' : (tx.creditorExternalParticipantId === selectedExternalParticipant[0].externalParticipantId ? tx.creditorTotalAmount : ''),
+            sentAmount: tx.creditorExternalParticipantId === selectedExternalParticipant[0].externalParticipantId ? '' : (tx.debtorExternalParticipantId === selectedExternalParticipant[0].externalParticipantId ? tx.debtorTotalAmount : ''),
+            currency: senderCurrency ? senderCurrency.currencyId : 'N/A',
           };
         }),
-        note: "Each entry in tableDataRows corresponds to a row in the settlement table."
+        note: "Each entry in tableDataRows corresponds to a row in the settlement table. The 'Sent Amount' and 'Received Amount' columns are shown from the perspective of the selected participant."
       }
-    %>
 
+      dataForJson.groupedTableDataRowsByCurrency = dataForJson.tableDataRows.reduce((acc, row) => {
+        if (!acc[row.currency]) {
+          acc[row.currency] = [];
+        }
+        acc[row.currency].push(row);
+        return acc;
+      }, {});
+    %>
 
     <body data-json="<%= JSON.stringify(dataForJson) %>">
       <div class="container">
         <!-- Header Section -->
         <div class="header">
-          <h1>DFSP Settlement Detail for <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %></h1>
+          <h1>External DFSP Settlement Detail for <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %></h1>
           {{- if .Values.templates.topBarLogoUrl -}}
           <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
           {{- end }}
@@ -486,6 +522,12 @@ spec:
           <p>Last State Update: <%= settlementInfo?.lastStateUpdate.toISOString() %></p>
         </div>
 
+        <div class="summary" style="margin-bottom: 10px;">
+          <p class="smallFont">
+            <strong>Note:</strong> "Sent Amount" and "Received Amount" columns are shown from the perspective of the selected participant (<%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %>).
+          </p>
+        </div>
+
         <table>
           <thead>
             <tr>
@@ -494,16 +536,28 @@ spec:
               <% } %>
             </tr>
           </thead>
-            <tbody>
-            <% for (let i = 0; i < dataForJson.tableDataRows.length; i++) {
-               const row = dataForJson.tableDataRows[i]; %>
-                <tr style="<%= i % 2 === 1 ? 'background-color: #f2f2f2;' : '' %>">
-                  <% for (const col of dataForJson.tableColumns) { %>
-                    <td><%= row[col.key] %></td>
-                  <% } %>
-                </tr>
+          <tbody>
+            <%
+              for (const [currency, rows] of Object.entries(dataForJson.groupedTableDataRowsByCurrency)) {
+            %>
+              <!-- Spacer row with currency name -->
+              <tr>
+                <td colspan="<%= dataForJson.tableColumns.length %>" style="background-color: #e9f3fa; font-weight: bold; text-align: left;">
+                <%= currency %>
+                </td>
+              </tr>
+              <%
+                for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+              %>
+              <tr style="<%= i % 2 === 1 ? 'background-color: #f2f2f2;' : '' %>">
+                <% for (const col of dataForJson.tableColumns) { %>
+                  <td><%= row[col.key] %></td>
+                <% } %>
+              </tr>
+              <% } %>
             <% } %>
-            </tbody>
+          </tbody>
         </table>
 
         <!--
@@ -522,3 +576,4 @@ spec:
     </body>
 
     </html>
+{{- end }}
