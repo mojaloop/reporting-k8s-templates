@@ -1,29 +1,56 @@
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: "dfsp-settlement-detail"
+  name: dfsp-settlement-detail
 spec:
-  permission: report-dfsp-settlement-detail
   endpoint:
-    path: /dfspSettlementDetail
     params:
       - name: settlementId
         required: true
-      - name: fspid
+      - name: fspId
         required: true
+    path: /dfspSettlementDetail
+  permission: transferApi
   queries:
-    - name: dfspInfo
-      query: |
-        SELECT participantId, name FROM participant WHERE name = :fspid AND name != 'Hub'
-    - name: getSettlement
-      query: |
+    - name: allExternalParticipants
+      query: >
         SELECT
-          settlementId,
-          createdDate as settlementCreatedDate
-        FROM
-          settlement
-        WHERE
-          settlementId = :settlementId
+        ep.externalParticipantId,
+        ep.name as externalParticipantName,
+        ep.createdDate,
+        ep.proxyId
+        FROM externalParticipant AS ep
+        ORDER BY ep.externalParticipantId;
+    - name: selectedParticipant
+      query: >
+        SELECT
+          p.participantId,
+          p.name as name,
+          p.createdDate
+        FROM participant AS p
+        WHERE p.name = :fspId;
+    - name: settlementInfoResult
+      query: >
+        SELECT
+            s.settlementId,
+            s.createdDate,
+            ssc.settlementStateId as currentState,
+            ssc.createdDate as lastStateUpdate,
+            sSW.createdDate as windowCreatedDate,
+            sSW.settlementWindowId,
+            MIN(sWSCOpen.createdDate) as windowOpenDate,
+            MAX(sWSCClosed.createdDate) as windowClosedDate
+        FROM settlement s
+        INNER JOIN settlementSettlementWindow sSW
+                on s.settlementId = sSW.settlementId
+        INNER JOIN settlementWindowStateChange sWSCOpen
+                on sSW.settlementWindowId = sWSCOpen.settlementWindowId AND sWSCOpen.settlementWindowStateId = 'OPEN'
+        INNER JOIN settlementWindowStateChange sWSCClosed
+                on sSW.settlementWindowId = sWSCClosed.settlementWindowId AND sWSCClosed.settlementWindowStateId = 'CLOSED'
+        INNER JOIN settlementStateChange ssc
+            on s.currentStateChangeId = ssc.settlementStateChangeId
+        WHERE s.settlementId = :settlementId
+        GROUP BY s.settlementId, sSW.settlementWindowId;
     - name: allParticipantCurrencyIds
       query: >
         SELECT
@@ -38,99 +65,219 @@ spec:
             participant AS p
             ON pc.participantId = p.participantId
         ORDER BY pc.participantCurrencyId;
-    - name: getPositionMovementsPerSettlementWindow
-      query: |
+    - name: settlementParticipantCurrencyIdsResult
+      query: >
         SELECT
-          result1.transferId as transferId,
-          result1.settlementWindowId as settlementWindowId,
-          result1.participantCurrencyId as participantCurrencyId,
-          SUM(result1.amount) as netAmount,
-          result1.swOpenCreated,
-          result1.swClosedCreated
+          result1.participantCurrencyId as debtorParticipantCurrencyId,
+          result2.participantCurrencyId as creditorParticipantCurrencyId,
+          result1.externalParticipantId as debtorExternalParticipantId,
+          result2.externalParticipantId as creditorExternalParticipantId,
+          result1.amount as debtorTotalAmount,
+          result2.amount as creditorTotalAmount,
+          result1.isFxTransfer as isFxTransfer,
+          result1.transferId as transferId
         FROM
-          (
+
+        (
+          SELECT
+            unioned.participantCurrencyId,
+            unioned.transferId,
+            unioned.uniqueLegId,
+            unioned.pid,
+            unioned.externalParticipantId,
+            unioned.change as amount,
+            unioned.isFxTransfer
+          FROM (
             SELECT
-              sw.settlementWindowId,
-              pc.participantCurrencyId,
-            swOpen.createdDate as swOpenCreated,
-            swClose.createdDate as swClosedCreated,
-              unioned.transferId,
-              unioned.uniqueLegId,
-              SUM(unioned.change) as amount
+              ppc.participantCurrencyId,
+              tf.transferId,
+              tf.transferId AS uniqueLegId,
+              COALESCE(ep.name, pc.participantId) as pid,
+              NULL as externalParticipantId,
+              ppc.change,
+              FALSE as isFxTransfer
             FROM
-              (
-                SELECT
-                  ppc.participantCurrencyId,
-                  ppc.change,
-                  tf.settlementWindowId,
-                  tf.transferId AS transferId,
-                  tf.transferId AS uniqueLegId
-                FROM
-                  transferFulfilment AS tf
-                  INNER JOIN transferStateChange AS tsc ON tsc.transferId = tf.transferId
-                  INNER JOIN participantPositionChange AS ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
-                  INNER JOIN settlementSettlementWindow ssw ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-                  INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-                UNION ALL
-                SELECT
-                  ppc.participantCurrencyId,
-                  ppc.change,
-                  fxtf.settlementWindowId,
-                  fxt1.determiningTransferId AS transferId,
-                  fxt1.commitRequestId AS uniqueLegId
-                FROM
-                  fxTransferFulfilment AS fxtf
-                  INNER JOIN fxTransfer AS fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
-                  INNER JOIN fxTransferStateChange AS fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
-                  INNER JOIN participantPositionChange AS ppc ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
-                  INNER JOIN settlementSettlementWindow ssw ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
-                  INNER JOIN settlementParticipantCurrency AS spc ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
-              ) AS unioned
-              INNER JOIN participantCurrency AS pc ON pc.participantCurrencyId = unioned.participantCurrencyId
-              INNER JOIN participant AS p ON p.participantId = pc.participantId
-              INNER JOIN settlementWindow as sw ON sw.settlementWindowId = unioned.settlementWindowId
-              INNER JOIN central_ledger.settlementWindowStateChange AS swOpen ON swOpen.settlementWindowId = unioned.settlementWindowId
-              LEFT OUTER JOIN central_ledger.settlementWindowStateChange AS swClose ON swClose.settlementWindowId = unioned.settlementWindowId
-              AND swClose.settlementWindowStateId = 'CLOSED'
-            WHERE
-              swOpen.settlementWindowStateId = 'OPEN'
-            GROUP BY
-              sw.settlementWindowId,
-              pc.participantCurrencyId,
-            swOpen.createdDate,
-            swClose.createdDate,
-              unioned.transferId,
-              unioned.uniqueLegId
-            ORDER BY
-              unioned.transferId
-          ) as result1
-        GROUP BY
-          result1.settlementWindowId,
-          result1.participantCurrencyId,
-          result1.swOpenCreated,
-          result1.swClosedCreated,
-          result1.transferId
-    - name: getFxQuoteConversionTerms
-      query: |
-        SELECT * FROM central_ledger.fxQuoteConversionTerms;
-    - name: getQuoteParties
-      query: |
-        SELECT
-            q.transactionReferenceId,
-            qp.fspId,
-            ts.name as transactionScenarioName,
-            tSS.name as transactionSubScenarioName,
-            pit.name as partyIdentifierType,
-            qp.partyIdentifierValue as partyIdentifierValue
-        FROM central_ledger.quoteParty as qp
-        JOIN quote q on q.quoteId = qp.quoteId
-        JOIN transactionScenario ts on ts.transactionScenarioId = q.transactionScenarioId
-        JOIN partyIdentifierType pit on pit.partyIdentifierTypeId = qp.partyIdentifierTypeId
-        LEFT JOIN transactionSubScenario tSS on tSS.transactionSubScenarioId = q.transactionSubScenarioId
+              transferFulfilment AS tf
+            INNER JOIN
+              transferStateChange AS tsc
+              ON tsc.transferId = tf.transferId
+            INNER JOIN
+              participantPositionChange AS ppc
+              ON ppc.transferStateChangeId = tsc.transferStateChangeId
+            INNER JOIN
+              settlementParticipantCurrency AS spc
+              ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+              settlementSettlementWindow ssw
+              ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            LEFT JOIN
+              participantCurrency pc
+              ON pc.participantCurrencyId = ppc.participantCurrencyId
+            LEFT JOIN
+              transferParticipant tp
+              ON tp.transferId = tf.transferId AND tp.transferParticipantRoleTypeId IN ('1', 'PAYER_DFSP')
+            LEFT JOIN
+              externalParticipant ep
+              ON tp.externalParticipantId = ep.externalParticipantId
+
+            UNION ALL
+
+            SELECT
+              ppc.participantCurrencyId,
+              fxt1.determiningTransferId AS transferId,
+              fxt1.commitRequestId AS uniqueLegId,
+              COALESCE(ep.name, pc.participantId) as pid,
+              ep.externalParticipantId,
+              ppc.change,
+              TRUE as isFxTransfer
+            FROM
+              fxTransferFulfilment AS fxtf
+            INNER JOIN
+              fxTransfer AS fxt1
+              ON fxt1.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+              fxTransferStateChange AS fxtsc
+              ON fxtsc.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+              participantPositionChange AS ppc
+              ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+            INNER JOIN
+              settlementParticipantCurrency AS spc
+              ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+              settlementSettlementWindow ssw
+              ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            LEFT JOIN
+              participantCurrency pc
+              ON pc.participantCurrencyId = ppc.participantCurrencyId
+            LEFT JOIN
+              fxTransferParticipant ftp
+              ON ftp.commitRequestId = fxt1.commitRequestId AND ftp.transferParticipantRoleTypeId IN ('6', 'INITIATING')
+            LEFT JOIN
+              externalParticipant ep
+              ON ftp.externalParticipantId = ep.externalParticipantId
+          ) AS unioned
+          INNER JOIN
+            participantCurrency AS pc
+            ON pc.participantCurrencyId = unioned.participantCurrencyId
+          WHERE unioned.change > 0
+          -- No SUM, keep individual movements
+          ORDER BY unioned.transferId
+        ) as result1
+
+        INNER JOIN
+        (
+          SELECT
+            unioned.participantCurrencyId,
+            unioned.transferId,
+            unioned.uniqueLegId,
+            unioned.pid,
+            unioned.externalParticipantId,
+            unioned.change as amount,
+            unioned.isFxTransfer
+          FROM (
+            SELECT
+              ppc.participantCurrencyId,
+              tf.transferId,
+              tf.transferId AS uniqueLegId,
+              COALESCE(ep.name, pc.participantId) as pid,
+              ep.externalParticipantId,
+              ppc.change,
+              FALSE as isFxTransfer
+            FROM
+              transferFulfilment AS tf
+            INNER JOIN
+              transferStateChange AS tsc
+              ON tsc.transferId = tf.transferId
+            INNER JOIN
+              participantPositionChange AS ppc
+              ON ppc.transferStateChangeId = tsc.transferStateChangeId
+            INNER JOIN
+              settlementParticipantCurrency AS spc
+              ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+              settlementSettlementWindow ssw
+              ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            LEFT JOIN
+              participantCurrency pc
+              ON pc.participantCurrencyId = ppc.participantCurrencyId
+            LEFT JOIN
+              transferParticipant tp
+              ON tp.transferId = tf.transferId AND tp.transferParticipantRoleTypeId IN ('2', 'PAYEE_DFSP')
+            LEFT JOIN
+              externalParticipant ep
+              ON tp.externalParticipantId = ep.externalParticipantId
+
+            UNION ALL
+
+            SELECT
+              ppc.participantCurrencyId,
+              fxt1.determiningTransferId AS transferId,
+              fxt1.commitRequestId AS uniqueLegId,
+              COALESCE(ep.name, pc.participantId) as pid,
+              ep.externalParticipantId,
+              ppc.change,
+              TRUE as isFxTransfer
+            FROM
+              fxTransferFulfilment AS fxtf
+            INNER JOIN
+              fxTransfer AS fxt1
+              ON fxt1.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+              fxTransferStateChange AS fxtsc
+              ON fxtsc.commitRequestId = fxtf.commitRequestId
+            INNER JOIN
+              participantPositionChange AS ppc
+              ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+            INNER JOIN
+              settlementParticipantCurrency AS spc
+              ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            INNER JOIN
+              settlementSettlementWindow ssw
+              ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            LEFT JOIN
+              participantCurrency pc
+              ON pc.participantCurrencyId = ppc.participantCurrencyId
+            LEFT JOIN
+              fxTransferParticipant ftp
+              ON ftp.commitRequestId = fxt1.commitRequestId AND ftp.transferParticipantRoleTypeId IN ('7', 'COUNTERPARTY')
+              AND (ftp.participantCurrencyId IS NULL OR ftp.participantCurrencyId = pc.participantCurrencyId)
+            LEFT JOIN
+              externalParticipant ep
+              ON ftp.externalParticipantId = ep.externalParticipantId
+          ) AS unioned
+          INNER JOIN
+            participantCurrency AS pc
+            ON pc.participantCurrencyId = unioned.participantCurrencyId
+          WHERE unioned.change < 0
+          -- No SUM, keep individual movements
+          ORDER BY unioned.transferId
+        ) as result2
+        ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
+        WHERE
+          (
+            (result1.participantCurrencyId IN (
+              SELECT participantCurrencyId
+              FROM participantCurrency
+              WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
+            ))
+            OR
+            (result2.participantCurrencyId IN (
+              SELECT participantCurrencyId
+              FROM participantCurrency
+              WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
+            ))
+          )
+        -- No GROUP BY, keep individual movements
+        ;
   template: |
     <!DOCTYPE html>
     <html lang="en">
+
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DFSP Settlement Detail for <%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %></title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -216,8 +363,8 @@ spec:
                 font-size: 0.9em;
             }
 
-            tr:nth-child(even) {
-                background-color: #f2f2f2;
+            .main-row {
+                background-color: #1980a940;
             }
 
             .smallFont {
@@ -229,19 +376,6 @@ spec:
                 color: #fff;
                 padding: 10px;
                 font-size: 1.0em;
-                margin-bottom: 10px;
-            }
-
-            .thGroupBy {
-                background-color: #cfdbeb;
-                padding: 10px;
-                font-size: 1.0em;
-                font-weight: bold;
-            }
-
-            .thSeparator {
-                background-color: #ffffff;
-                padding: 2px;
             }
 
             .button-link {
@@ -289,172 +423,119 @@ spec:
             }
 
             .footer p {
-                margin: 5px 0;
+                margin: 4px 0;
             }
         </style>
-        <title>FSP Settlement Report</title>
     </head>
-    <body>
-
     <%
-        const formatAmount = (amount) => parseFloat(amount).toLocaleString('en-US');
-
-        const participantCurrencyMap = {};
-        for (let row of allParticipantCurrencyIds) {
-            participantCurrencyMap[row.participantCurrencyId] = {
-                currencyId: row.currencyId,
-                name: row.name,
-                participantId: row.participantId
-            };
-        }
-
-        const fxQuoteConversionTerms = {};
-        for (let row of getFxQuoteConversionTerms) {
-            fxQuoteConversionTerms[row.determiningTransferId] = row;
-        }
-
-        const quoteParties = {};
-        for (let row of getQuoteParties) {
-            if (!quoteParties[row.transactionReferenceId]) {
-                quoteParties[row.transactionReferenceId] = {};
-            }
-            quoteParties[row.transactionReferenceId][row.fspId] = row;
-        }
-
-        const report = [];
-        for (let movement of getPositionMovementsPerSettlementWindow) {
-            const participantCurrency = participantCurrencyMap[movement.participantCurrencyId];
-            const otherMovement = getPositionMovementsPerSettlementWindow.find(
-                m => m.transferId === movement.transferId && m.participantCurrencyId !== movement.participantCurrencyId
-            );
-            const otherParticipantCurrency = participantCurrencyMap[otherMovement.participantCurrencyId];
-            if (participantCurrency.participantId !== dfspInfo[0]?.participantId && otherParticipantCurrency.participantId !== dfspInfo[0]?.participantId) {
-                continue;
-            }
-            if (otherMovement) {
-                const index = getPositionMovementsPerSettlementWindow.indexOf(otherMovement);
-                if (index > -1) {
-                    getPositionMovementsPerSettlementWindow.splice(index, 1);
-                }
-            }
-            const isPayer = movement.netAmount > 0;
-            const isSentOrReceived = isPayer && participantCurrency.name == dfspInfo[0]?.name;
-            const isFx = fxQuoteConversionTerms.hasOwnProperty(movement.transferId)
-            let transactionType = isFx ? 'Currency Conversion' : null;
-            let transactionNature = isFx ? 'Payer initiated' : null;
-
-            let payerIdentifierType = 'N/A';
-            let payerIdentifierValue = 'N/A';
-            let payeeIdentifierType = 'N/A';
-            let payeeIdentifierValue = 'N/A';
-            let payerFspName = isPayer ? participantCurrency.name : otherParticipantCurrency.name
-            let payeeFspName = isPayer ? otherParticipantCurrency.name : participantCurrency.name
-
-            if (isFx) {
-              if (fxQuoteConversionTerms[movement.transferId].initiatingFsp === payerFspName) {
-                payeeFspName = payeeFspName + `(${fxQuoteConversionTerms[movement.transferId].counterPartyFsp})`;
-              }
-              if (fxQuoteConversionTerms[movement.transferId].counterPartyFsp === payerFspName) {
-                payeeFspName = payeeFspName + `(${fxQuoteConversionTerms[movement.transferId].initiatingFspId})`;
-              }
-            }
-
-            if (!isFx) {
-                const quoteParty1 = quoteParties[movement.transferId][participantCurrency.name];
-                const quoteParty2 = quoteParties[movement.transferId][otherParticipantCurrency.name];
-                if (quoteParty1) {
-                    transactionType = quoteParty1.transactionScenarioName;
-                    transactionNature = quoteParty1.transactionSubScenarioName || '-';
-                    payerIdentifierType = quoteParty1.partyIdentifierType;
-                    payerIdentifierValue = quoteParty1.partyIdentifierValue;
-                }
-                if(quoteParty2) {
-                    transactionType = quoteParty2.transactionScenarioName;
-                    transactionNature = quoteParty2.transactionSubScenarioName || '-';
-                    payeeIdentifierType = quoteParty2.partyIdentifierType;
-                    payeeIdentifierValue = quoteParty2.partyIdentifierValue;
-                }
-            }
-            report.push({
-                payerFspId: isPayer ? participantCurrency.participantId : otherParticipantCurrency.participantId,
-                payerFspName: payerFspName,
-                payeeFspId: isPayer ? otherParticipantCurrency.participantId : participantCurrency.participantId,
-                payeeFspName: payeeFspName,
-                transferId: movement.transferId,
-                transactionType: transactionType,
-                transactionNature: transactionNature,
-                lastModifiedDate: new Date(movement.swClosedCreated || movement.swOpenCreated),
-                payerIdentifierType: payerIdentifierType,
-                payerIdentifierValue: payerIdentifierValue,
-                payeeIdentifierType: payeeIdentifierType,
-                payeeIdentifierValue: payeeIdentifierValue,
-                receivedAmount: isSentOrReceived ? '-' : movement.netAmount,
-                sentAmount: isSentOrReceived ? movement.netAmount : '-',
-                currencyId: participantCurrency.currencyId
-            });
-        }
-        const dataForJson = {
-            dfspInfo,
-            settlement: getSettlement,
-            report
-        };
+      // Build a map of externalParticipantId to name from allExternalParticipants
+      const externalParticipantIdMap = {};
+      for (const ep of allExternalParticipants) {
+        externalParticipantIdMap[ep.externalParticipantId] = ep;
+      }
     %>
-    <div class="container" data-json="<%= JSON.stringify(dataForJson) %>" >
+    <%
+      const settlementInfo = settlementInfoResult[0];
+      const dataForJson = {
+        settlementInfo,
+        tableColumns: [
+          { key: "senderFspName", label: "Sender FSP Name" },
+          { key: "senderExternalFspName", label: "Sender External FSP Name" },
+          { key: "receiverFspName", label: "Receiver FSP Name" },
+          { key: "receiverExternalFspName", label: "Receiver External FSP Name" },
+          { key: "transferId", label: "Transfer ID" },
+          { key: "txType", label: "Tx Type" },
+          { key: "txNature", label: "Tx Nature" },
+          { key: "lastModified", label: "Last Modified" },
+          { key: "senderIdType", label: "Sender ID Type" },
+          { key: "senderId", label: "Sender ID" },
+          { key: "receiverIdType", label: "Receiver ID Type" },
+          { key: "receiverId", label: "Receiver ID" },
+          { key: "receivedAmount", label: "Received Amount" },
+          { key: "sentAmount", label: "Sent Amount" },
+          { key: "currency", label: "Currency" },
+          { key: "fee", label: "Fee" }
+        ],
+        tableDataRows: settlementParticipantCurrencyIdsResult.map(tx => {
+          const senderCurrency = allParticipantCurrencyIds.find(x => x.participantCurrencyId === tx.debtorParticipantCurrencyId);
+          const receiverCurrency = allParticipantCurrencyIds.find(x => x.participantCurrencyId === tx.creditorParticipantCurrencyId);
+          return {
+        senderFspName: senderCurrency ? senderCurrency.name : 'N/A',
+        senderExternalFspName: tx.debtorExternalParticipantId ? (externalParticipantIdMap[tx.debtorExternalParticipantId]?.externalParticipantName || 'N/A') : 'N/A',
+        receiverFspName: receiverCurrency ? receiverCurrency.name : 'N/A',
+        receiverExternalFspName: tx.creditorExternalParticipantId ? (externalParticipantIdMap[tx.creditorExternalParticipantId]?.externalParticipantName || 'N/A') : 'N/A',
+        transferId: tx.transferId || 'N/A',
+        txType: tx.isFxTransfer ? 'Currency Conversion' : 'Transfer',
+        txNature: tx.isFxTransfer ? 'Payer initiated' : 'N/A',
+        lastModified: settlementInfo?.windowClosedDate ? new Date(settlementInfo.windowClosedDate).toISOString() : (settlementInfo?.windowOpenDate ? new Date(setlementInfo.windowOpenDate).toISOString() : null),
+        senderIdType: 'N/A',
+        senderId: 'N/A',
+        receiverIdType: 'N/A',
+        receiverId: 'N/A',
+        receivedAmount: tx.debtorTotalAmount < 0 ? Math.abs(tx.debtorTotalAmount) : 0,
+        sentAmount: tx.debtorTotalAmount > 0 ? tx.debtorTotalAmount : 0,
+        currency: senderCurrency ? senderCurrency.currencyId : 'N/A',
+        fee: 'N/A'
+          };
+        }),
+        note: "Each entry in tableDataRows corresponds to a row in the settlement table."
+      }
+    %>
+
+
+    <body data-json="<%= JSON.stringify(dataForJson) %>">
+      <div class="container">
+        <!-- Header Section -->
         <div class="header">
-            <h1>DFSP Settlement Detail</h1>
-            {{- if .Values.templates.topBarLogoUrl -}}
-            <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
-            {{- end }}
+          <h1>DFSP Settlement Detail for <%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %></h1>
+          {{- if .Values.templates.topBarLogoUrl -}}
+          <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
+          {{- end }}
         </div>
+
+        <!-- Settlement Summary Section -->
         <div class="summary">
-            <p>Participant ID: <%= dfspInfo[0]?.participantId %></p>
-            <p>FSP ID: <%= dfspInfo[0]?.name %></p>
-            <p>Settlement ID: <%= getSettlement[0]?.settlementId %></p>
-            <p>Created Date: <%= getSettlement[0]?.settlementCreatedDate.toISOString() %></p>
+          <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
+          <p>State: <%= settlementInfo?.currentState %></p>
+          <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>
+          <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate.toISOString() %></p>
+          <p>Created Date: <%= settlementInfo?.createdDate.toISOString() %></p>
+          <p>Last State Update: <%= settlementInfo?.lastStateUpdate.toISOString() %></p>
         </div>
-        <table data-sheet-name="DFSPSettlementDetailReport">
+
+        <table>
+          <thead>
             <tr>
-                <td>Sender Participant ID</td>
-                <td>Sender FSP ID</td>
-                <td>Receiver Participant ID</td>
-                <td>Receiver FSP ID</td>
-                <td>Transfer ID</td>
-                <td>Tx Type</td>
-                <td>Tx Nature</td>
-                <td>Last Modified</td>
-                <td>Sender ID Type</td>
-                <td>Sender ID</td>
-                <td>Receiver ID Type</td>
-                <td>Receiver ID</td>
-                <td>Received Amount</td>
-                <td>Sent Amount</td>
-                <td>Currency</td>
-                <td>Fee</td>
+              <% for (const col of dataForJson.tableColumns) { %>
+                <th><%= col.label %></th>
+              <% } %>
             </tr>
-            <% for(let e of report) { %>
-                <tr>
-                    <td><%= e.payerFspId %></td>
-                    <td><%= e.payerFspName %></td>
-                    <td><%= e.payeeFspId %></td>
-                    <td><%= e.payeeFspName %></td>
-                    <td><%= e.transferId %></td>
-                    <td><%= e.transactionType %></td>
-                    <td><%= e.transactionNature %></td>
-                    <td><%= e.lastModifiedDate.toISOString() %></td>
-                    <td><%= e.payerIdentifierType %></td>
-                    <td><%= e.payerIdentifierValue %></td>
-                    <td><%= e.payeeIdentifierType %></td>
-                    <td><%= e.payeeIdentifierValue %></td>
-                    <td><%= e.receivedAmount %></td>
-                    <td><%= e.sentAmount %></td>
-                    <td><%= e.currencyId %></td>
-                    <td>-</td>
+          </thead>
+            <tbody>
+            <% for (let i = 0; i < dataForJson.tableDataRows.length; i++) {
+               const row = dataForJson.tableDataRows[i]; %>
+                <tr style="<%= i % 2 === 1 ? 'background-color: #f2f2f2;' : '' %>">
+                  <% for (const col of dataForJson.tableColumns) { %>
+                    <td><%= row[col.key] %></td>
+                  <% } %>
                 </tr>
             <% } %>
-            <div class="footer">
-                <p>Generated on: <%= (new Date()).toUTCString() %></p>
-            </div>
+            </tbody>
         </table>
-    </div>
+
+        <!--
+        <pre>
+          <code>
+          <%= JSON.stringify(dataForJson, null, 2) %>
+          </code>
+        </pre>
+        -->
+
+        <!-- Footer Section -->
+        <div class="footer">
+          <p>Generated on: <%= (new Date()).toUTCString() %></p>
+        </div>
+      </div>
     </body>
+
     </html>
