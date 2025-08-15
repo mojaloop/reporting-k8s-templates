@@ -440,14 +440,9 @@ spec:
           { key: "txType", label: "Tx Type" },
           { key: "txNature", label: "Tx Nature" },
           { key: "lastModified", label: "Last Modified" },
-          { key: "senderIdType", label: "Sender ID Type" },
-          { key: "senderId", label: "Sender ID" },
-          { key: "receiverIdType", label: "Receiver ID Type" },
-          { key: "receiverId", label: "Receiver ID" },
           { key: "receivedAmount", label: "Received Amount" },
           { key: "sentAmount", label: "Sent Amount" },
-          { key: "currency", label: "Currency" },
-          { key: "fee", label: "Fee" }
+          { key: "currency", label: "Currency" }
         ],
         tableDataRows: settlementParticipantCurrencyIdsResultExternalParticipants.map(tx => {
           const senderCurrency = allParticipantCurrencyIds.find(x => x.participantCurrencyId === tx.debtorParticipantCurrencyId);
@@ -461,14 +456,9 @@ spec:
         txType: tx.isFxTransfer ? 'Currency Conversion' : 'Transfer',
         txNature: tx.isFxTransfer ? 'Payer initiated' : 'N/A',
         lastModified: settlementInfo?.windowClosedDate ? new Date(settlementInfo.windowClosedDate).toISOString() : (settlementInfo?.windowOpenDate ? new Date(setlementInfo.windowOpenDate).toISOString() : null),
-        senderIdType: 'N/A',
-        senderId: 'N/A',
-        receiverIdType: 'N/A',
-        receiverId: 'N/A',
         receivedAmount: tx.debtorTotalAmount < 0 ? Math.abs(tx.debtorTotalAmount) : 0,
         sentAmount: tx.debtorTotalAmount > 0 ? tx.debtorTotalAmount : 0,
         currency: senderCurrency ? senderCurrency.currencyId : 'N/A',
-        fee: 'N/A'
           };
         }),
         note: "Each entry in tableDataRows corresponds to a row in the settlement table."
