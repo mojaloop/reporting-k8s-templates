@@ -4,6 +4,12 @@ kind: MojaloopReport
 metadata:
   name: dfsp-settlement-external-participant
   {{ include "common.annotations" . | nindent 2 }}
+## NOTE: For transfer leg of fx transfers involving FXP to the receiving FSP's Proxy,
+## the externalParticipantId on the transferParticipant is set to that of the sending FSP.
+## This introduces inconsistencies in UNION operation output where the FXP is supposedly represented by the Sender FSP.
+## It is unclear if this is an entry mistake in the central ledger,
+## but this specific case will be ignored for now.
+## Referring to line: NULL as externalParticipantId
 spec:
   endpoint:
     params:
@@ -658,142 +664,65 @@ spec:
           <tbody>
             <tr>
               <th style="display:none;">row-type</th>
-              <th>Net Debtor</th>
-              <th>Net Creditor</th>
-              <th>Currency</th>
-              <th>Total Sent Amount</th>
-              <th>Total Received Amount</th>
-              <th>Net Settlement Amount</th>
-            </tr>
-            <% for (let sd of calculatedSettlementRowsWithDetails) { %>
-              <tr class="main-row">
+                <% for (const col of dataForJson.tableColumns) { %>
+                <th><%= col.label %></th>
+                <% } %>
+              </tr>
+              <% for (let i = 0; i < dataForJson.tableDataRows.length; i++) {
+                const row = dataForJson.tableDataRows[i];
+              %>
+                <tr class="main-row">
                 <td style="display:none;">main</td>
-                <td><%= sd.payerParticipantCurrencyDetails.name %></td>
-                <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
-                <td><%= sd.payeeParticipantCurrencyDetails.currencyId %></td>
-                <td><%= sd.totalAmountSent %></td>
+                <td><%= row.netDebtor %></td>
+                <td><%= row.netCreditor %></td>
+                <td><%= row.currency %></td>
+                <td><%= row.totalSentAmount %></td>
                 <td>
-                  <%= sd.totalReverseAmount >= 0 ? `${sd.totalReverseAmount}` : `(${-sd.totalReverseAmount})` %>
+                  <%= row.totalReceivedAmount >= 0 ? `${row.totalReceivedAmount}` : `(${-row.totalReceivedAmount})` %>
                 </td>
                 <td>
-                  <% if (sd.netSettlementAmount < 0) { %>
-                    (<%= Math.abs(sd.netSettlementAmount) %>)
+                  <% if (row.netSettlementAmount < 0) { %>
+                  (<%= Math.abs(row.netSettlementAmount) %>)
                   <% } else { %>
-                    <%= sd.netSettlementAmount %>
+                  <%= row.netSettlementAmount %>
                   <% } %>
                 </td>
-              </tr>
-              <%
-                // Group subrows by debtor/creditor external participant, currency, and direction
-                const subRowsRaw = settlementParticipantCurrencyIdsResultExternalParticipants.filter(
-                  m =>
-                    (m.debtorParticipantCurrencyId === sd.netDebtor && m.creditorParticipantCurrencyId === sd.netCreditor) ||
-                    (m.debtorParticipantCurrencyId === sd.netCreditor && m.creditorParticipantCurrencyId === sd.netDebtor)
-                );
-
-                // Group by debtor/creditor external participant id and direction
-                const subRowsMap = new Map();
-                for (let sub of subRowsRaw) {
-                  // Determine direction for grouping
-                  let isSameDirection = sub.debtorParticipantCurrencyId === sd.netDebtor && sub.creditorParticipantCurrencyId === sd.netCreditor;
-
-                  // Only use external participant if participantCurrencyId is a proxy
-                  const debtorId = isSameDirection ? sub.debtorExternalParticipantId : sub.creditorExternalParticipantId;
-                  const creditorId = isSameDirection ? sub.creditorExternalParticipantId : sub.debtorExternalParticipantId;
-                  const debtorParticipantCurrencyId = isSameDirection ? sub.debtorParticipantCurrencyId : sub.creditorParticipantCurrencyId;
-                  const creditorParticipantCurrencyId = isSameDirection ? sub.creditorParticipantCurrencyId : sub.debtorParticipantCurrencyId;
-
-                  const debtorName = getExternalParticipantDisplayName(debtorId, debtorParticipantCurrencyId);
-                  const creditorName = getExternalParticipantDisplayName(creditorId, creditorParticipantCurrencyId);
-
-                  const key = `${debtorName}|||${creditorName}|||${isSameDirection ? 'fwd' : 'rev'}`;
-                  if (!subRowsMap.has(key)) {
-                    subRowsMap.set(key, {
-                      debtorId,
-                      creditorId,
-                      debtorName,
-                      creditorName,
-                      sentAmount: 0,
-                      receivedAmount: 0,
-                      isFxTransfer: false,
-                      currencyId: sd.payeeParticipantCurrencyDetails.currencyId
-                    });
-                  }
-                  const group = subRowsMap.get(key);
-                  // Sum amounts based on direction
-                  if (isSameDirection) {
-                    group.sentAmount += parseFloat(sub.debtorTotalAmount);
-                  } else {
-                    group.receivedAmount += parseFloat(sub.debtorTotalAmount) * -1;
-                  }
-                  group.isFxTransfer = group.isFxTransfer || !!sub.isFxTransfer;
-                }
-
-                // Merge subrows with same debtorName and creditorName (regardless of direction)
-                const mergedSubRowsMap = new Map();
-                for (let group of subRowsMap.values()) {
-                  const mergeKey = `${group.debtorName}|||${group.creditorName}`;
-                  if (!mergedSubRowsMap.has(mergeKey)) {
-                    mergedSubRowsMap.set(mergeKey, {
-                      debtorName: group.debtorName,
-                      creditorName: group.creditorName,
-                      sentAmount: 0,
-                      receivedAmount: 0,
-                      currencyId: group.currencyId,
-                      isFxTransfer: group.isFxTransfer
-                    });
-                  }
-                  const merged = mergedSubRowsMap.get(mergeKey);
-                  merged.sentAmount += group.sentAmount;
-                  merged.receivedAmount += group.receivedAmount;
-                  merged.isFxTransfer = merged.isFxTransfer || group.isFxTransfer;
-                }
-                const subRowsGrouped = Array.from(mergedSubRowsMap.values());
-
-
-                // Render subrows
-                for (let sub of subRowsGrouped) {
-                  // Calculate net settlement for subrow using sent/received
-                  let netAmount;
-                  if (sub.sentAmount && sub.receivedAmount) {
-                    netAmount = sub.sentAmount + sub.receivedAmount;
-                  } else if (sub.sentAmount) {
-                    netAmount = sub.sentAmount;
-                  } else if (sub.receivedAmount) {
-                    netAmount = sub.receivedAmount;
-                  } else {
-                    netAmount = 0;
-                  }
-              %>
+                </tr>
+                <%
+                const subRows = dataForJson.tableSubRows[i] || [];
+                for (const sub of subRows) {
+                  let netAmount = sub.netSettlementAmount;
+                %>
                 <tr style="background:#ffffff;">
                   <td style="display:none;">sub-row</td>
                   <td class="smallFont" style="position:relative; padding-left:0;">
-                    <div style="position:absolute; left:0; top:0; bottom:0; width:10%; background:#f2f2f2; z-index:0;"></div>
-                    <span style="margin:10%; position:relative; z-index:1;">&nbsp;&nbsp; <%= sub.debtorName %></span>
+                  <div style="position:absolute; left:0; top:0; bottom:0; width:10%; background:#f2f2f2; z-index:0;"></div>
+                  <span style="margin:10%; position:relative; z-index:1;">&nbsp;&nbsp; <%= sub.debtorName %></span>
                   </td>
                   <td class="smallFont"><%= sub.creditorName %></td>
-                  <td class="smallFont"><%= sub.currencyId %></td>
+                  <td class="smallFont"><%= sub.currency %></td>
                   <td class="smallFont"><%= sub.sentAmount ? sub.sentAmount : '-' %></td>
                   <td class="smallFont">
-                    <% if (sub.receivedAmount) { %>
-                      <%= sub.receivedAmount < 0 ? `(${Math.abs(sub.receivedAmount)})` : sub.receivedAmount %>
-                    <% } else { %>
-                      -
-                    <% } %>
+                  <% if (sub.receivedAmount) { %>
+                    <%= sub.receivedAmount < 0 ? `(${Math.abs(sub.receivedAmount)})` : sub.receivedAmount %>
+                  <% } else { %>
+                    -
+                  <% } %>
                   </td>
                   <td class="smallFont">
-                    <% if (netAmount < 0) { %>
-                      (<%= Math.abs(netAmount) %>)
-                    <% } else { %>
-                      <%= netAmount %>
-                    <% } %>
-                    <br/>
+                  <% if (netAmount < 0) { %>
+                    (<%= Math.abs(netAmount) %>)
+                  <% } else { %>
+                    <%= netAmount %>
+                  <% } %>
+                  <br/>
                   </td>
                 </tr>
+                <% } %>
               <% } %>
-            <% } %>
-          </tbody>
-        </table>
+              </tbody>
+            </table>
+
         <!--
         <pre>
           <code>
@@ -801,6 +730,7 @@ spec:
           </code>
         </pre>
         -->
+
         <!-- Footer Section -->
         <div class="footer">
           <p>Generated on: <%= (new Date()).toUTCString() %></p>
