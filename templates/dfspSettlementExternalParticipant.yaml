@@ -281,7 +281,7 @@ spec:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Bilateral Settlement Report for <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %></title>
+        <title>External Bilateral Settlement Report for <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %></title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -628,7 +628,7 @@ spec:
       <div class="container">
         <!-- Header Section -->
         <div class="header">
-          <h1>Bilateral Settlement Report for <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %></h1>
+          <h1>External Bilateral Settlement Report for <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %></h1>
           {{- if .Values.templates.topBarLogoUrl -}}
           <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
           {{- end }}
