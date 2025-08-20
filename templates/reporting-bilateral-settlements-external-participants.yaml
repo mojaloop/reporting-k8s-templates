@@ -2,7 +2,7 @@
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: reporting-bilateral-settlements-external-participants
+  name: {{ printf "%s-%s" .Release.Name "reporting-bilateral-settlements-external-participants" | trimPrefix "-" }}
   {{ include "common.annotations" . | nindent 2 }}
 ## NOTE: For transfer leg of fx transfers involving FXP to the receiving FSP's Proxy,
 ## the externalParticipantId on the transferParticipant is set to that of the sending FSP.

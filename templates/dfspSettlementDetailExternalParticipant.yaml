@@ -3,7 +3,7 @@
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: dfsp-settlement-detail-external-participant
+  name: {{ printf "%s-%s" .Release.Name "dfsp-settlement-detail-external-participant" | trimPrefix "-" }}
   {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
