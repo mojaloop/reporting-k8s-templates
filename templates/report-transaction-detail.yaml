@@ -92,10 +92,10 @@ spec:
             payerpit.partyIdentifierTypeId = qp1.partyIdentifierTypeId
         inner join partyIdentifierType payeepit on
             payeepit.partyIdentifierTypeId = qp2.partyIdentifierTypeId
-        inner join fxCharge fxc on
-            fxc.conversionId = fqrct.conversionId
         inner join quoteResponse qr on
             qr.quoteId = q.quoteId
+        left join fxCharge fxc on
+            fxc.conversionId = fqrct.conversionId
         where
             `tprt1`.`name` = 'PAYER_DFSP'
             and `tprt2`.`name` = 'PAYEE_DFSP'
@@ -627,6 +627,33 @@ spec:
                   </table>
                 </div>
             </div>
+
+
+            <!--
+            <pre>
+            <code>
+              <%= JSON.stringify(transfers, null, 2) %>
+            </code>
+            </pre>
+            <pre>
+            <code>
+              fxCharges:
+              <%= JSON.stringify(fxCharges, null, 2) %>
+
+              positionChanges:
+              <%= JSON.stringify(positionChanges, null, 2) %>
+
+              fxPositionChanges:
+              <%= JSON.stringify(fxPositionChanges, null, 2) %>
+
+              transferSettlementBatch:
+              <%= JSON.stringify(transferSettlementBatch, null, 2) %>
+
+              conversionSettlementBatch:
+              <%= JSON.stringify(conversionSettlementBatch, null, 2) %>
+            </code>
+            </pre>
+            -->
 
             <div class="footer">
                 <p>Generated on: <%= (new Date()).toUTCString() %></p>

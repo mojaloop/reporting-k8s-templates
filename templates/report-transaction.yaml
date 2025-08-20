@@ -8,6 +8,11 @@ metadata:
   {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
+    params:
+    - name: startDate
+      required: true
+    - name: endDate
+      required: true
     path: /report-transaction
   permission: transferApi
   queries:
@@ -69,6 +74,7 @@ spec:
             `tprt1`.`name` = 'PAYER_DFSP'
             and `tprt2`.`name` = 'PAYEE_DFSP'
             and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'
+            AND ( `tsc`.`createdDate` BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
         order by
             `completedTimestamp` desc;
 
