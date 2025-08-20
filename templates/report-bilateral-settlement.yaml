@@ -3,7 +3,7 @@
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: report-bilateral-settlement
+  name: {{ printf "%s-%s" .Release.Name "report-bilateral-settlement" | trimPrefix "-" }}
   {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
