@@ -10,6 +10,8 @@ metadata:
 ## It is unclear if this is an entry mistake in the central ledger,
 ## but this specific case will be ignored for now.
 ## Referring to line: NULL as externalParticipantId
+##
+## Due to security rules, do not use inline styles for HTML elements.
 spec:
   endpoint:
     params:
@@ -663,12 +665,20 @@ spec:
       transactionsMap.forEach(transaction => {
         const { netDebtor, netCreditor, totalAmountSent, totalReverseAmount } = transaction;
         const netSettlementAmount = totalAmountSent.plus(totalReverseAmount);
+        // Find scale for this row (use creditor's currency scale)
+        let scale = 2;
+        const creditorCurrency = allParticipantCurrencyIds?.find(
+          pc => pc.participantCurrencyId === netCreditor
+        );
+        if (creditorCurrency && currencyMap[creditorCurrency.currencyId]) {
+          scale = currencyMap[creditorCurrency.currencyId].scale;
+        }
         output.push({
-        netDebtor,
-        netCreditor,
-        totalAmountSent: totalAmountSent.toNumber(),
-        totalReverseAmount: totalReverseAmount.toNumber(),
-        netSettlementAmount: netSettlementAmount.toNumber()
+          netDebtor,
+          netCreditor,
+          totalAmountSent: formatAmount(totalAmountSent, scale),
+          totalReverseAmount: formatAmount(totalReverseAmount, scale),
+          netSettlementAmount: formatAmount(netSettlementAmount, scale)
         });
       });
 
@@ -697,12 +707,12 @@ spec:
 
       // Build an array of objects representing the actual table data
       const tableDataRows = calculatedSettlementRowsWithDetails.map(row => ({
-      netDebtor: row.payerParticipantCurrencyDetails?.name || row.netDebtor,
-      netCreditor: row.payeeParticipantCurrencyDetails?.name || row.netCreditor,
-      currency: row.payeeParticipantCurrencyDetails?.currencyId || '-',
-      totalSentAmount: row.totalAmountSent,
-      totalReceivedAmount: row.totalReverseAmount,
-      netSettlementAmount: row.netSettlementAmount
+        netDebtor: row.payerParticipantCurrencyDetails?.name || row.netDebtor,
+        netCreditor: row.payeeParticipantCurrencyDetails?.name || row.netCreditor,
+        currency: row.payeeParticipantCurrencyDetails?.currencyId || '-',
+        totalSentAmount: row.totalAmountSent,
+        totalReceivedAmount: row.totalReverseAmount,
+        netSettlementAmount: row.netSettlementAmount
       }));
 
       // Build sub row data for each main row
@@ -777,13 +787,18 @@ spec:
         } else {
         netAmount = new BigNumber(0);
         }
+        // Format amounts to scale
+        let scale = 2;
+        if (currencyMap[sub.currencyId]) {
+          scale = currencyMap[sub.currencyId].scale;
+        }
         return {
-        debtorName: sub.debtorName,
-        creditorName: sub.creditorName,
-        currency: sub.currencyId,
-        sentAmount: sub.sentAmount.toNumber(),
-        receivedAmount: sub.receivedAmount.toNumber(),
-        netSettlementAmount: netAmount.toNumber(),
+          debtorName: sub.debtorName,
+          creditorName: sub.creditorName,
+          currency: sub.currencyId,
+          sentAmount: formatAmount(sub.sentAmount, scale),
+          receivedAmount: formatAmount(sub.receivedAmount, scale),
+          netSettlementAmount: formatAmount(netAmount, scale),
         };
       });
       });
@@ -845,58 +860,80 @@ spec:
             <tr>
               <th class="hidden">row-type</th>
               <% for (const col of dataForJson.tableColumns) { %>
-              <th><%= col.label %></th>
+          <th><%= col.label %></th>
               <% } %>
             </tr>
             <% for (let i = 0; i < dataForJson.tableDataRows.length; i++) {
               const row = dataForJson.tableDataRows[i];
               const subRows = dataForJson.tableSubRows[i] || [];
+              // Get scale for this row (use currencyMap)
+              let scale = 2;
+              if (currencyMap[row.currency]) {
+          scale = currencyMap[row.currency].scale;
+              }
+              const totalReceivedAmountBN = new BigNumber(row.totalReceivedAmount);
+              const netSettlementAmountBN = new BigNumber(row.netSettlementAmount);
             %>
               <tr class="main-row">
-              <td class="hidden">main-row</td>
-              <td><%= row.netDebtor %></td>
-              <td><%= row.netCreditor %></td>
-              <td><%= row.currency %></td>
-              <td><%= row.totalSentAmount %></td>
-              <td>
-                <%= row.totalReceivedAmount >= 0 ? `${row.totalReceivedAmount}` : `(${-row.totalReceivedAmount})` %>
-              </td>
-              <td>
-                <% if (row.netSettlementAmount < 0) { %>
-                (<%= Math.abs(row.netSettlementAmount) %>)
-                <% } else { %>
-                <%= row.netSettlementAmount %>
-                <% } %>
-              </td>
+          <td class="hidden">main-row</td>
+          <td><%= row.netDebtor %></td>
+          <td><%= row.netCreditor %></td>
+          <td><%= row.currency %></td>
+          <td><%= formatAmount(row.totalSentAmount, scale) %></td>
+          <td>
+            <% if (totalReceivedAmountBN.isGreaterThanOrEqualTo(0)) { %>
+              <%= formatAmount(totalReceivedAmountBN, scale) %>
+            <% } else { %>
+              (<%= formatAmount(totalReceivedAmountBN.negated(), scale) %>)
+            <% } %>
+          </td>
+          <td>
+            <% if (netSettlementAmountBN.isLessThan(0)) { %>
+              (<%= formatAmount(netSettlementAmountBN.negated(), scale) %>)
+            <% } else { %>
+              <%= formatAmount(netSettlementAmountBN, scale) %>
+            <% } %>
+          </td>
               </tr>
               <% for (const sub of subRows) {
-              let netAmount = sub.netSettlementAmount;
+          // Get scale for subrow
+          let subScale = 2;
+          if (currencyMap[sub.currency]) {
+            subScale = currencyMap[sub.currency].scale;
+          }
+          const sentAmountBN = new BigNumber(sub.sentAmount || 0);
+          const receivedAmountBN = new BigNumber(sub.receivedAmount || 0);
+          const netAmountBN = new BigNumber(sub.netSettlementAmount || 0);
               %>
-            <tr class="whiteBackground">
-              <td class="hidden">sub-row</td>
-              <td class="smallFont relative-padding-zero">
-                <div class="indent-bar"></div>
-                <span class="indented-debtor">&nbsp;&nbsp; <%= sub.debtorName %></span>
-              </td>
-              <td class="smallFont"><%= sub.creditorName %></td>
-              <td class="smallFont"><%= sub.currency %></td>
-              <td class="smallFont"><%= sub.sentAmount ? sub.sentAmount : '-' %></td>
-              <td class="smallFont">
-                <% if (sub.receivedAmount) { %>
-                  <%= sub.receivedAmount < 0 ? `(${Math.abs(sub.receivedAmount)})` : sub.receivedAmount %>
+          <tr class="whiteBackground">
+            <td class="hidden">sub-row</td>
+            <td class="smallFont relative-padding-zero">
+              <div class="indent-bar"></div>
+              <span class="indented-debtor">&nbsp;&nbsp; <%= sub.debtorName %></span>
+            </td>
+            <td class="smallFont"><%= sub.creditorName %></td>
+            <td class="smallFont"><%= sub.currency %></td>
+            <td class="smallFont"><%= sentAmountBN.isZero() ? '-' : formatAmount(sentAmountBN, subScale) %></td>
+            <td class="smallFont">
+              <% if (!receivedAmountBN.isZero()) { %>
+                <% if (receivedAmountBN.isLessThan(0)) { %>
+            (<%= formatAmount(receivedAmountBN.negated(), subScale) %>)
                 <% } else { %>
-                  -
+            <%= formatAmount(receivedAmountBN, subScale) %>
                 <% } %>
-              </td>
-              <td class="smallFont">
-                <% if (netAmount < 0) { %>
-                  (<%= Math.abs(netAmount) %>)
-                <% } else { %>
-                  <%= netAmount %>
-                <% } %>
-                <br/>
-              </td>
-            </tr>
+              <% } else { %>
+                -
+              <% } %>
+            </td>
+            <td class="smallFont">
+              <% if (netAmountBN.isLessThan(0)) { %>
+                (<%= formatAmount(netAmountBN.negated(), subScale) %>)
+              <% } else { %>
+                <%= formatAmount(netAmountBN, subScale) %>
+              <% } %>
+              <br/>
+            </td>
+          </tr>
               <% } %>
             <% } %>
           </tbody>
@@ -912,7 +949,7 @@ spec:
 
         <!-- Footer Section -->
         <div class="footer">
-          <p>Generated on: <%= (new Date()).toUTCString() %></p>
+            <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>
         </div>
       </div>
     </body>

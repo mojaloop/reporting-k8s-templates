@@ -594,7 +594,7 @@ spec:
 
         <!-- Footer Section -->
         <div class="footer">
-          <p>Generated on: <%= (new Date()).toUTCString() %></p>
+            <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>
         </div>
       </div>
     </body>
