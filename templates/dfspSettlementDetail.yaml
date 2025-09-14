@@ -491,7 +491,7 @@ spec:
         transferId: tx.transferId || 'N/A',
         txType: tx.isFxTransfer ? 'Currency Conversion' : 'Transfer',
         txNature: tx.isFxTransfer ? 'Payer initiated' : 'N/A',
-        lastModified: tx.latestStateChangeDate ? new Date(tx.latestStateChangeDate).toISOString() : '',
+        lastModified: tx.latestStateChangeDate ? new Date(tx.latestStateChangeDate).toLocaleString() : '',
         receivedAmount: senderCurrency && senderCurrency.name === selectedParticipant[0].name ? '' : (receiverCurrency && receiverCurrency.name === selectedParticipant[0].name ? tx.creditorTotalAmount : ''),
         sentAmount: receiverCurrency && receiverCurrency.name === selectedParticipant[0].name ? '' : (senderCurrency && senderCurrency.name === selectedParticipant[0].name ? tx.debtorTotalAmount : ''),
         currency: senderCurrency ? senderCurrency.currencyId : 'N/A',
@@ -525,10 +525,10 @@ spec:
         <div class="summary">
           <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
           <p>State: <%= settlementInfo?.currentState %></p>
-          <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>
-          <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate.toISOString() %></p>
-          <p>Created Date: <%= settlementInfo?.createdDate.toISOString() %></p>
-          <p>Last State Update: <%= settlementInfo?.lastStateUpdate.toISOString() %></p>
+            <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate ? new Date(settlementInfo.windowOpenDate).toLocaleString() : '' %></p>
+            <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate ? new Date(settlementInfo.windowClosedDate).toLocaleString() : '' %></p>
+            <p>Created Date: <%= settlementInfo?.createdDate ? new Date(settlementInfo.createdDate).toLocaleString() : '' %></p>
+            <p>Last State Update: <%= settlementInfo?.lastStateUpdate ? new Date(settlementInfo.lastStateUpdate).toLocaleString() : '' %></p>
         </div>
 
         <div class="summary" style="margin-bottom: 10px;">
