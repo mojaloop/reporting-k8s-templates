@@ -557,6 +557,35 @@ spec:
             .footer p {
                 margin: 4px 0;
             }
+
+            .hidden {
+                display: none;
+            }
+
+            .whiteBackground {
+                background-color: #ffffff;
+            }
+
+            .indent-bar {
+              position: absolute;
+              left: 0;
+              top: 0;
+              bottom: 0;
+              width: 10%;
+              background: #f2f2f2;
+              z-index: 0;
+            }
+
+            .indented-debtor {
+              margin-left: 10%;
+              position: relative;
+              z-index: 1;
+            }
+
+            .relative-padding-zero {
+              position: relative;
+              padding-left: 0;
+            }
         </style>
     </head>
     <%
@@ -814,7 +843,7 @@ spec:
         <table id='settlement-table' cellpadding='0' cellspacing='0'>
           <tbody>
             <tr>
-              <th style="display:none;">row-type</th>
+              <th class="hidden">row-type</th>
               <% for (const col of dataForJson.tableColumns) { %>
               <th><%= col.label %></th>
               <% } %>
@@ -824,7 +853,7 @@ spec:
               const subRows = dataForJson.tableSubRows[i] || [];
             %>
               <tr class="main-row">
-              <td style="display:none;">main-row</td>
+              <td class="hidden">main-row</td>
               <td><%= row.netDebtor %></td>
               <td><%= row.netCreditor %></td>
               <td><%= row.currency %></td>
@@ -843,11 +872,11 @@ spec:
               <% for (const sub of subRows) {
               let netAmount = sub.netSettlementAmount;
               %>
-            <tr style="background:#ffffff;">
-              <td style="display:none;">sub-row</td>
-              <td class="smallFont" style="position:relative; padding-left:0;">
-                <div style="position:absolute; left:0; top:0; bottom:0; width:10%; background:#f2f2f2; z-index:0;"></div>
-                <span style="margin:10%; position:relative; z-index:1;">&nbsp;&nbsp; <%= sub.debtorName %></span>
+            <tr class="whiteBackground">
+              <td class="hidden">sub-row</td>
+              <td class="smallFont relative-padding-zero">
+                <div class="indent-bar"></div>
+                <span class="indented-debtor">&nbsp;&nbsp; <%= sub.debtorName %></span>
               </td>
               <td class="smallFont"><%= sub.creditorName %></td>
               <td class="smallFont"><%= sub.currency %></td>
