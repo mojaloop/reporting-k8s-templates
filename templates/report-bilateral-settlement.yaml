@@ -1,5 +1,4 @@
 {{- if .Values.templates.bilateralSettlement -}}
-
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
@@ -364,87 +363,105 @@ spec:
 
       const formatAmount = (amount, scale) => {
         const v = new BigNumber(amount).toFormat(scale, BigNumber.ROUND_UP, {
+          prefix: '',
+          decimalSeparator: '.',
           groupSeparator: ',',
-          decimalSeparator: '.'
+          groupSize: 3,
+          secondaryGroupSize: 0,
+          fractionGroupSeparator: ' ',
+          fractionGroupSize: 0,
+          suffix: ''
         });
-        return `${v}`;
+        return v;
       }
-    %>
-    <%
+
+      // Helper function to generate unique keys for debtor and creditor pairs
+      function generateKey(debtorId, creditorId) {
+        return `${debtorId}_${creditorId}`;
+      }
+
       const currencyMap = {};
       for (const c of getAllCurrency) {
         currencyMap[c.currencyId] = c;
       }
     %>
+
     <%
-        function calculateNetSettlement(input) {
-            // A map to track transactions for easy lookup
-            const transactionsMap = new Map();
+      function calculateNetSettlement(input) {
+        // A map to track transactions for easy lookup
+        const transactionsMap = new Map();
 
-            // Helper function to generate unique keys for debtor and creditor pairs
-            function generateKey(debtorId, creditorId) {
-                return `${debtorId}_${creditorId}`;
+        // Process the input transactions
+        input.forEach(transaction => {
+          const { debtorParticipantCurrencyId, creditorParticipantCurrencyId, debtorTotalAmount } = transaction;
+          const key = generateKey(debtorParticipantCurrencyId, creditorParticipantCurrencyId);
+
+          // Use BigNumber for all calculations
+          const amount = new BigNumber(debtorTotalAmount);
+
+          // Store transaction in the map
+          if (!transactionsMap.has(key)) {
+            transactionsMap.set(key, {
+              netDebtor: debtorParticipantCurrencyId,
+              netCreditor: creditorParticipantCurrencyId,
+              totalAmountSent: amount,
+              totalReverseAmount: new BigNumber(0)
+            });
+          } else {
+            transactionsMap.get(key).totalAmountSent = transactionsMap.get(key).totalAmountSent.plus(amount);
+          }
+
+          // Check for a reverse transaction
+          const reverseKey = generateKey(creditorParticipantCurrencyId, debtorParticipantCurrencyId);
+          if (transactionsMap.has(reverseKey)) {
+            const reverseAmount = transactionsMap.get(reverseKey).totalAmountSent;
+            if (reverseAmount.gte(amount)) {
+              // Update reverse amount for the original transaction
+              transactionsMap.get(reverseKey).totalReverseAmount = transactionsMap.get(reverseKey).totalReverseAmount.minus(amount);
+              transactionsMap.delete(key);
+            } else {
+              transactionsMap.get(key).totalReverseAmount = reverseAmount.negated();
+              transactionsMap.delete(reverseKey);
             }
+          }
+        });
 
-            // Process the input transactions
-            input.forEach(transaction => {
-                const { debtorParticipantCurrencyId, creditorParticipantCurrencyId, debtorTotalAmount } = transaction;
-                const key = generateKey(debtorParticipantCurrencyId, creditorParticipantCurrencyId);
+        // Calculate net settlement amount and format the output
+        const output = [];
+        transactionsMap.forEach(transaction => {
+          const { netDebtor, netCreditor, totalAmountSent, totalReverseAmount } = transaction;
+          const netSettlementAmount = totalAmountSent.plus(totalReverseAmount);
 
-                // Use BigNumber for all calculations
-                const amount = new BigNumber(debtorTotalAmount);
+          // Find currency scale using netCreditor (payee) participantCurrencyId
+          const payeeDetails = allParticipantCurrencyIds.find(
+            (pc) => pc.participantCurrencyId === netCreditor
+          );
+          const currencyId = payeeDetails?.currencyId;
+          const scale = currencyMap[currencyId]?.scale || 2;
 
-                // Store transaction in the map
-                if (!transactionsMap.has(key)) {
-                    transactionsMap.set(key, {
-                        netDebtor: debtorParticipantCurrencyId,
-                        netCreditor: creditorParticipantCurrencyId,
-                        totalAmountSent: amount,
-                        totalReverseAmount: new BigNumber(0)
-                    });
-                } else {
-                    transactionsMap.get(key).totalAmountSent = transactionsMap.get(key).totalAmountSent.plus(amount);
-                }
+          output.push({
+            netDebtor,
+            netCreditor,
+            totalAmountSent: {
+              formatted: formatAmount(totalAmountSent, scale),
+              bignumber: totalAmountSent,
+              scale
+            },
+            totalReverseAmount: {
+              formatted: formatAmount(totalReverseAmount, scale),
+              bignumber: totalReverseAmount,
+              scale
+            },
+            netSettlementAmount: {
+              formatted: formatAmount(netSettlementAmount, scale),
+              bignumber: netSettlementAmount,
+              scale
+            }
+          });
+        });
 
-                // Check for a reverse transaction
-                const reverseKey = generateKey(creditorParticipantCurrencyId, debtorParticipantCurrencyId);
-                if (transactionsMap.has(reverseKey)) {
-                    const reverseAmount = transactionsMap.get(reverseKey).totalAmountSent;
-                    if (reverseAmount.gte(amount)) {
-                        // Update reverse amount for the original transaction
-                        transactionsMap.get(reverseKey).totalReverseAmount = transactionsMap.get(reverseKey).totalReverseAmount.minus(amount);
-                        transactionsMap.delete(key);
-                    } else {
-                        transactionsMap.get(key).totalReverseAmount = reverseAmount.negated();
-                        transactionsMap.delete(reverseKey);
-                    }
-                }
-            });
-
-            // Calculate net settlement amount and format the output
-            const output = [];
-            transactionsMap.forEach(transaction => {
-                const { netDebtor, netCreditor, totalAmountSent, totalReverseAmount } = transaction;
-                const netSettlementAmount = totalAmountSent.plus(totalReverseAmount);
-
-                // Find currency scale using netCreditor (payee) participantCurrencyId
-                const payeeDetails = allParticipantCurrencyIds.find(
-                  (pc) => pc.participantCurrencyId === netCreditor
-                );
-                const currencyId = payeeDetails?.currencyId;
-                const scale = currencyMap[currencyId]?.scale || 2;
-
-                output.push({
-                    netDebtor,
-                    netCreditor,
-                    totalAmountSent: formatAmount(totalAmountSent, scale),
-                    totalReverseAmount: formatAmount(totalReverseAmount, scale),
-                    netSettlementAmount: formatAmount(netSettlementAmount, scale)
-                });
-            });
-
-            return output;
-        }
+        return output;
+      }
 
 
       const calculatedSettlementRows = calculateNetSettlement(settlementParticipantCurrencyIdsResult)
@@ -487,38 +504,39 @@ spec:
             </div>
 
             <table cellpadding='0' cellspacing='0'>
-                <tbody>
-                    <tr>
-                        <th>Net Debtor</th>
-                        <th>Net Creditor</th>
-                        <th>Currency</th>
-                        <th>Total Sent Amount</th>
-                        <th>Total Received Amount</th>
-                        <th>Net Settlement Amount</th>
-                    </tr>
-                    <% for(let sd of calculatedSettlementRowsWithDetails) {
-                        const currency = sd.payeeParticipantCurrencyDetails?.currencyId;
-                        const scale = currencyMap[currency]?.scale || 2;
-                        const totalSent = formatAmount(sd.totalAmountSent, scale);
-                        const totalReverse = formatAmount(sd.totalReverseAmount, scale);
-                        const netSettlement = formatAmount(sd.netSettlementAmount, scale);
-                    %>
-                    <tr>
-                        <td><%= sd.payerParticipantCurrencyDetails.name %></td>
-                        <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
-                        <td><%= currency %></td>
-                        <td><%= totalSent %></td>
-                        <td>
-                            <% if (new BigNumber(sd.totalReverseAmount).gte(0)) { %>
-                                <%= totalReverse %>
-                            <% } else { %>
-                                (<%= formatAmount(new BigNumber(sd.totalReverseAmount).negated(), scale) %>)
-                            <% } %>
-                        </td>
-                        <td><%= netSettlement %></td>
-                    </tr>
+              <tbody>
+                <tr>
+                  <th>Net Debtor</th>
+                  <th>Net Creditor</th>
+                  <th>Currency</th>
+                  <th>Total Sent Amount</th>
+                  <th>Total Received Amount</th>
+                  <th>Net Settlement Amount</th>
+                </tr>
+                <% for(let sd of calculatedSettlementRowsWithDetails) {
+                  const currency = sd.payeeParticipantCurrencyDetails?.currencyId;
+                  const scale = currencyMap[currency]?.scale || 2;
+                  // Use the bignumber object from dataForJson
+                  const totalSent = formatAmount(sd.totalAmountSent.bignumber, scale);
+                  const totalReverse = formatAmount(sd.totalReverseAmount.bignumber, scale);
+                  const netSettlement = formatAmount(sd.netSettlementAmount.bignumber, scale);
+                %>
+                <tr>
+                  <td><%= sd.payerParticipantCurrencyDetails.name %></td>
+                  <td><%= sd.payeeParticipantCurrencyDetails.name %></td>
+                  <td><%= currency %></td>
+                  <td><%= totalSent %></td>
+                  <td>
+                    <% if (new BigNumber(sd.totalReverseAmount.bignumber).gte(0)) { %>
+                      <%= totalReverse %>
+                    <% } else { %>
+                      (<%= formatAmount(new BigNumber(sd.totalReverseAmount.bignumber).negated(), scale) %>)
                     <% } %>
-                </tbody>
+                  </td>
+                  <td><%= netSettlement %></td>
+                </tr>
+                <% } %>
+              </tbody>
             </table>
 
             <!-- Footer Section -->

@@ -639,10 +639,6 @@ spec:
       function calculateNetSettlement(input) {
         const transactionsMap = new Map();
 
-        function generateKey(debtorId, creditorId) {
-          return `${debtorId}_${creditorId}`;
-        }
-
         input.forEach(transaction => {
           const {
             debtorParticipantCurrencyId,
