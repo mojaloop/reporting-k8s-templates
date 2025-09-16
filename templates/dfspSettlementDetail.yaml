@@ -5,6 +5,7 @@ kind: MojaloopReport
 metadata:
   name: {{ printf "%s-%s" .Release.Name "dfsp-settlement-detail" | trimPrefix "-" }}
   {{ include "common.annotations" . | nindent 2 }}
+## Due to security rules, do not use inline styles for HTML elements.
 spec:
   endpoint:
     params:
@@ -454,6 +455,20 @@ spec:
             .footer p {
                 margin: 4px 0;
             }
+
+            .marginBottom10px {
+                margin-bottom: 10px;
+            }
+
+            .currency-header-row {
+              background-color: #e9f3fa;
+              font-weight: bold;
+              text-align: left;
+            }
+
+            .offwhite {
+              background-color: #f9f9f9;
+            }
         </style>
     </head>
     <%
@@ -491,7 +506,7 @@ spec:
         transferId: tx.transferId || 'N/A',
         txType: tx.isFxTransfer ? 'Currency Conversion' : 'Transfer',
         txNature: tx.isFxTransfer ? 'Payer initiated' : 'N/A',
-        lastModified: tx.latestStateChangeDate ? new Date(tx.latestStateChangeDate).toISOString() : '',
+        lastModified: tx.latestStateChangeDate ? new Date(tx.latestStateChangeDate).toLocaleString() : '',
         receivedAmount: senderCurrency && senderCurrency.name === selectedParticipant[0].name ? '' : (receiverCurrency && receiverCurrency.name === selectedParticipant[0].name ? tx.creditorTotalAmount : ''),
         sentAmount: receiverCurrency && receiverCurrency.name === selectedParticipant[0].name ? '' : (senderCurrency && senderCurrency.name === selectedParticipant[0].name ? tx.debtorTotalAmount : ''),
         currency: senderCurrency ? senderCurrency.currencyId : 'N/A',
@@ -525,13 +540,13 @@ spec:
         <div class="summary">
           <p>Settlement ID: <%= settlementInfo?.settlementId %></p>
           <p>State: <%= settlementInfo?.currentState %></p>
-          <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate.toISOString() %></p>
-          <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate.toISOString() %></p>
-          <p>Created Date: <%= settlementInfo?.createdDate.toISOString() %></p>
-          <p>Last State Update: <%= settlementInfo?.lastStateUpdate.toISOString() %></p>
+            <p>Earliest Window Start: <%= settlementInfo?.windowOpenDate ? new Date(settlementInfo.windowOpenDate).toLocaleString() : '' %></p>
+            <p>Latest Window Finish: <%= settlementInfo?.windowClosedDate ? new Date(settlementInfo.windowClosedDate).toLocaleString() : '' %></p>
+            <p>Created Date: <%= settlementInfo?.createdDate ? new Date(settlementInfo.createdDate).toLocaleString() : '' %></p>
+            <p>Last State Update: <%= settlementInfo?.lastStateUpdate ? new Date(settlementInfo.lastStateUpdate).toLocaleString() : '' %></p>
         </div>
 
-        <div class="summary" style="margin-bottom: 10px;">
+        <div class="summary marginBottom10px">
           <p class="smallFont">
             <strong>Note:</strong> "Sent Amount" and "Received Amount" columns are shown from the perspective of the selected participant (<%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %>).
           </p>
@@ -551,7 +566,7 @@ spec:
             %>
               <!-- Spacer row with currency name -->
               <tr>
-                <td colspan="<%= dataForJson.tableColumns.length %>" style="background-color: #e9f3fa; font-weight: bold; text-align: left;">
+                <td colspan="<%= dataForJson.tableColumns.length %>" class="currency-header-row">
                 <%= currency %>
                 </td>
               </tr>
@@ -559,7 +574,7 @@ spec:
                 for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
               %>
-              <tr style="<%= i % 2 === 1 ? 'background-color: #f2f2f2;' : '' %>">
+              <tr class="<%= i % 2 === 1 ? 'offwhite' : '' %>">
                 <% for (const col of dataForJson.tableColumns) { %>
                   <td><%= row[col.key] %></td>
                 <% } %>
@@ -579,7 +594,7 @@ spec:
 
         <!-- Footer Section -->
         <div class="footer">
-          <p>Generated on: <%= (new Date()).toUTCString() %></p>
+            <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>
         </div>
       </div>
     </body>
