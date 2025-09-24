@@ -360,10 +360,16 @@ spec:
 
       const formatAmount = (amount, scale) => {
         const v = new BigNumber(amount).toFormat(scale, BigNumber.ROUND_UP, {
+          prefix: '',
+          decimalSeparator: '.',
           groupSeparator: ',',
-          decimalSeparator: '.'
-        });
-        return `${v}`;
+          groupSize: 3,
+          secondaryGroupSize: 0,
+          fractionGroupSeparator: ' ',
+          fractionGroupSize: 0,
+          suffix: ''
+          });
+          return v;
       }
 
       const currencyMap = {};
@@ -557,7 +563,7 @@ spec:
                 <td>Exchange Rate</td>
                 <td>
                 <%= new BigNumber(exchangeRate).toFormat(4) %>
-                (<%= new BigNumber(sourceAmount).minus(sourceAmountConversionCharges).toFormat(currencyMap[sourceCurrency]?.scale || 2) %>/<%= new BigNumber(targetAmount).minus(targetAmountConversionCharges).toFormat(currencyMap[targetCurrency]?.scale || 2) %>)
+                (<%= formatAmount(new BigNumber(sourceAmount).minus(sourceAmountConversionCharges), currencyMap[sourceCurrency]?.scale || 2) %>/<%= formatAmount(new BigNumber(targetAmount).minus(targetAmountConversionCharges), currencyMap[targetCurrency]?.scale || 2) %>)
                 </td>
               </tr>
               <tr>
@@ -638,7 +644,7 @@ spec:
               <td><%= pc.positionChangeCurrency %></td>
               <td><%= formatAmount(pc.previousPositionChangeValue, currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
               <td><%= formatAmount(pc.positionChangeValue, currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
-              <td><%= new BigNumber(pc.positionChangeValue).minus(pc.previousPositionChangeValue).toFormat(currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
+              <td><%= formatAmount(new BigNumber(pc.positionChangeValue).minus(pc.previousPositionChangeValue), currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
               </tr>
               <% } %>
               <% for(let fpc of fxPositionChanges) { %>
@@ -647,7 +653,7 @@ spec:
               <td><%= fpc.positionChangeCurrency %></td>
               <td><%= formatAmount(fpc.previousPositionChangeValue, currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
               <td><%= formatAmount(fpc.positionChangeValue, currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
-              <td><%= new BigNumber(fpc.positionChangeValue).minus(fpc.previousPositionChangeValue).toFormat(currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
+              <td><%= formatAmount(new BigNumber(fpc.positionChangeValue).minus(fpc.previousPositionChangeValue), currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
               </tr>
               <% } %>
             </table>

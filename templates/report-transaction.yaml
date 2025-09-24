@@ -208,10 +208,16 @@ spec:
 
       const formatAmount = (amount, scale) => {
         const v = new BigNumber(amount).toFormat(scale, BigNumber.ROUND_UP, {
+          prefix: '',
+          decimalSeparator: '.',
           groupSeparator: ',',
-          decimalSeparator: '.'
-        });
-        return `${v}`;
+          groupSize: 3,
+          secondaryGroupSize: 0,
+          fractionGroupSeparator: ' ',
+          fractionGroupSize: 0,
+          suffix: ''
+          });
+          return v;
       }
 
       const currencyMap = {};
