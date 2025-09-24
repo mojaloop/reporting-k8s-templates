@@ -1,5 +1,4 @@
 {{- if .Values.templates.transactionDetail -}}
-
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
@@ -695,5 +694,4 @@ spec:
 
     </body>
     </html>
-
 {{- end }}

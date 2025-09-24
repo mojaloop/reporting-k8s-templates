@@ -1,5 +1,4 @@
 {{- if .Values.templates.settlementAudit -}}
-
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
@@ -77,7 +76,6 @@ spec:
         AND (tscIn.transferStateChangeId = ppc.transferStateChangeId OR tscOut.transferStateChangeId = ppc.transferStateChangeId)
         AND tex1.transferExtensionId = (SELECT MAX(transferExtensionId) FROM transferExtension tex1u WHERE tex1u.transferId = tp.transferId AND tex1u.key = 'user')
         AND tex2.transferExtensionId = (SELECT MAX(transferExtensionId) FROM transferExtension tex2u WHERE tex2u.transferId = tp.transferId AND tex2u.key = 'externalReference')
-        AND ( tp.createdDate BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
         ORDER BY p.name, pc.currencyId, pc.participantCurrencyId,  tp.createdDate
   template: |
     <!DOCTYPE html>

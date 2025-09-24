@@ -1,5 +1,4 @@
 {{- if .Values.templates.transaction -}}
-
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
@@ -16,14 +15,16 @@ spec:
     path: /report-transaction
   permission: transferApi
   queries:
-    - name: getAllCurrency
-        query: >
-        SELECT
-            currencyId,
-            scale,
-            name
-        FROM currency
-        ORDER BY currencyId;
+  - name: getAllCurrency
+    query: >
+      SELECT
+          currencyId,
+          scale,
+          name,
+          :startDate as startDate,
+          :endDate as endDate
+      FROM currency
+      ORDER BY currencyId;
   - name: transfers
     query: |
         select
@@ -236,8 +237,31 @@ spec:
             </div>
 
             <div class="summary">
-                <p>For Regional Hub:</p>
-                <p>Total Transactions: <%= transfers.length %></p>
+              <p>Total Transactions: <%= transfers.length %></p>
+              <%
+                // startDate and endDate are ISO strings, e.g., 2025-08-20T07:16:09 00:00
+                let startDateRaw = (getAllCurrency[0]?.startDate || '').trim();
+                let endDateRaw = (getAllCurrency[0]?.endDate || '').trim();
+
+                // Remove any trailing timezone if present (e.g., " 00:00" or " +00:00")
+                let startDateClean = startDateRaw.replace(/\s[+\-]?\d{2}:?\d{2}$/, '');
+                let endDateClean = endDateRaw.replace(/\s[+\-]?\d{2}:?\d{2}$/, '');
+
+                // Replace first space with 'T' to make it ISO if needed
+                let startDateIso = startDateClean.replace(' ', 'T');
+                let endDateIso = endDateClean.replace(' ', 'T');
+
+                // Parse and check for valid date
+                function safeLocaleString(dateStr) {
+                  const d = new Date(dateStr);
+                  return isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, { hour12: false });
+                }
+
+                let startDateStr = startDateIso ? safeLocaleString(startDateIso) : '';
+                let endDateStr = endDateIso ? safeLocaleString(endDateIso) : '';
+              %>
+              <p>Start Date: <%= startDateStr %></p>
+              <p>End Date: <%= endDateStr %></p>
             </div>
 
             <table>
@@ -285,5 +309,4 @@ spec:
 
     </body>
     </html>
-
 {{- end }}
