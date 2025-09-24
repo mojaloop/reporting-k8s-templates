@@ -430,7 +430,6 @@ spec:
         </div>
 
         <div class="summary">
-          <p>For Regional Hub</p>
           <p>Transfer ID: <%= transferId %></p>
           <p>State: <%= transferState %></p>
         </div>
