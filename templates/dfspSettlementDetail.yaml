@@ -1,10 +1,7 @@
-{{- if .Values.templates.dfspSettlementDetail -}}
-
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: {{ printf "%s-%s" .Release.Name "dfsp-settlement-detail" | trimPrefix "-" }}
-  {{ include "common.annotations" . | nindent 2 }}
+  name: "reporting-templates-dfsp-settlement-detail"
 ## Due to security rules, do not use inline styles for HTML elements.
 spec:
   endpoint:
@@ -269,34 +266,42 @@ spec:
             ON tsc.transferId = fxtsc.commitRequestId
             LEFT JOIN fxTransfer AS fxt
             ON fxtsc.commitRequestId = fxt.commitRequestId
-            WHERE tsc.transferId IN (
-              SELECT transferId FROM transferFulfilment WHERE settlementWindowId = (
-                SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+            WHERE (
+              tsc.transferId IN (
+                SELECT transferId FROM transferFulfilment WHERE settlementWindowId IN (
+                  SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+                )
               )
-            )
               OR fxtsc.commitRequestId IN (
-              SELECT commitRequestId FROM fxTransferFulfilment WHERE settlementWindowId = (
-                SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+                SELECT commitRequestId FROM fxTransferFulfilment WHERE settlementWindowId IN (
+                  SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+                )
               )
             )
             GROUP BY COALESCE(tsc.transferId, fxt.determiningTransferId)
         ) AS latestTransfer
         ON result1.transferId = latestTransfer.transferId
-
         WHERE
           (
           (result1.participantCurrencyId IN (
             SELECT participantCurrencyId
             FROM participantCurrency
-            WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
           ))
           OR
           (result2.participantCurrencyId IN (
             SELECT participantCurrencyId
             FROM participantCurrency
-            WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
           ))
           )
+        AND (
+          result1.participantCurrencyId IN (
+            SELECT participantCurrencyId FROM participantCurrency WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
+          )
+          OR
+          result2.participantCurrencyId IN (
+            SELECT participantCurrencyId FROM participantCurrency WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
+          )
+        )
         ORDER BY latestTransfer.latestStateChangeDate
         -- No GROUP BY, keep individual movements
         ;
@@ -600,4 +605,3 @@ spec:
     </body>
 
     </html>
-{{- end }}
