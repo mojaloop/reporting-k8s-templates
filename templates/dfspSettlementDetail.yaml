@@ -1,7 +1,10 @@
+{{- if .Values.templates.dfspSettlementDetail -}}
+
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: "reporting-templates-dfsp-settlement-detail"
+  name: {{ printf "%s-%s" .Release.Name "dfsp-settlement-detail" | trimPrefix "-" }}
+  {{ include "common.annotations" . | nindent 2 }}
 ## Due to security rules, do not use inline styles for HTML elements.
 spec:
   endpoint:
@@ -605,3 +608,4 @@ spec:
     </body>
 
     </html>
+{{- end }}
