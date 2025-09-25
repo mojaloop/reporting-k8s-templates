@@ -63,15 +63,15 @@ spec:
             `ts`.`transferId` = `transfer`.`transferId`
         inner join `transferStateChange` as `tsc` on
             `tsc`.`transferStateChangeId` = `ts`.`maxTransferStateChangeId`
-        inner join `fxTransfer` as ft on
+        left join `fxTransfer` as ft on
             ft.determiningTransferId = transfer.transferId
-        inner join `fxTransferParticipant` as `ftp1` on
+        left join `fxTransferParticipant` as `ftp1` on
             `ftp1`.`commitRequestId` = `ft`.`commitRequestId` and `ftp1`.fxParticipantCurrencyTypeId  = 1
-        inner join `transferParticipantRoleType` as `ftprt1` on
+        left join `transferParticipantRoleType` as `ftprt1` on
             `ftprt1`.`transferParticipantRoleTypeId` = `ftp1`.`transferParticipantRoleTypeId`
-        inner join `participant` as `fda` on
+        left join `participant` as `fda` on
             `fda`.`participantId` = `ftp1`.`participantId`
-        inner join fxQuoteConversionTerms fqct on
+        left join fxQuoteConversionTerms fqct on
         	fqct.conversionId = `ft`.`commitRequestId`
         inner join quote q on
             q.transactionReferenceId = transfer.transferId
@@ -82,7 +82,8 @@ spec:
         where
             `tprt1`.`name` = 'PAYER_DFSP'
             and `tprt2`.`name` = 'PAYEE_DFSP'
-            and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'
+            and ( `ftprt1`.`name` = 'COUNTER_PARTY_FSP' OR `ftprt1`.`name` IS NULL)
+            and `tsc`.`createdDate` IS NOT NULL
             AND ( `tsc`.`createdDate` BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
         order by
             `completedTimestamp` desc;
@@ -283,24 +284,29 @@ spec:
                 <% for(let tr of transfers) { %>
                     <tr>
                         <td class='smallFont'><a class="highlight-link" href='report-transaction-detail?transferId=<%= tr.transferId %>'><%= tr.transferId %></a></td>
-                        <td class='smallFont'><%= (new Date(tr.createdDate)).toLocaleString() %></td>
+                        <td class='smallFont'><%= (new Date(tr.completedTimestamp)).toLocaleString() %></td>
                         <td><%= tr.endPayerFsp + (tr.payerFsp != tr.endPayerFsp ? ` (${tr.payerFsp})` : '') %></td>
                         <td><%= tr.endPayeeFsp + (tr.payeeFsp != tr.endPayeeFsp ? ` (${tr.payeeFsp})` : '') %></td>
                         <td><%= tr.fxpName %></td>
                         <td>
-                          <%= formatAmount(tr.sourceAmount, currencyMap[tr.sourceCurrency]?.scale || 2) %>
+                          <%= tr.sourceAmount ?? tr.payerAmount %>
                         </td>
-                        <td><%= tr.sourceCurrency %></td>
+                        <td><%= tr.sourceCurrency ?? tr.currency %></td>
                         <td>
-                          <%= formatAmount(tr.targetAmount, currencyMap[tr.targetCurrency]?.scale || 2) %>
+                          <%= tr.targetAmount ?? tr.payeeAmount %>
                         </td>
-                        <td><%= tr.targetCurrency %></td>
+                        <td><%= tr.targetCurrency ?? tr.currency %></td>
                         <td><%= tr.transferState %></td>
                     </tr>
                 <% } %>
                 </tbody>
             </table>
-
+            <div class="summary">
+                <details>
+                    <summary>Show raw transfers JSON</summary>
+                    <pre style="white-space: pre-wrap; word-break: break-all;"><%= JSON.stringify(transfers, null, 2) %></pre>
+                </details>
+            </div>
             <!-- Footer Section -->
             <div class="footer">
                 <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>

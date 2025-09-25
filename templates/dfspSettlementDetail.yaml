@@ -289,22 +289,15 @@ spec:
           (result1.participantCurrencyId IN (
             SELECT participantCurrencyId
             FROM participantCurrency
+            WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
           ))
           OR
           (result2.participantCurrencyId IN (
             SELECT participantCurrencyId
             FROM participantCurrency
+            WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
           ))
           )
-        AND (
-          result1.participantCurrencyId IN (
-            SELECT participantCurrencyId FROM participantCurrency WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
-          )
-          OR
-          result2.participantCurrencyId IN (
-            SELECT participantCurrencyId FROM participantCurrency WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
-          )
-        )
         ORDER BY latestTransfer.latestStateChangeDate
         -- No GROUP BY, keep individual movements
         ;
@@ -479,6 +472,7 @@ spec:
             }
         </style>
     </head>
+
     <%
       // Build a map of externalParticipantId to name from allExternalParticipants
       const externalParticipantIdMap = {};
