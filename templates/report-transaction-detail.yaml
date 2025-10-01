@@ -448,9 +448,9 @@ spec:
               <tr>
               <tr>
                 <td>
-                At <i><%=submittedAt%></i> <b><%=sourceAmount%> <%=sourceCurrency%></b> was transferred from <%=payerFspName%> to <%=payeeFspName%> who received <b><%=targetAmount%> <%=targetCurrency%></b>.
-                <br /><%=payerFspName%> <%= payerFspName!=payerProxyName ? `was represented by ${payerProxyName} who` : '' %> was debited by <%=sourceAmount%> <%=sourceCurrency%>.
-                <br /><%=payeeFspName%> <%= payeeFspName!=payeeProxyName ? `was represented by ${payeeProxyName} who` : '' %> was credited by <%=targetAmount%> <%=targetCurrency%>.
+                At <i><%=submittedAt%></i> <b><%=formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2)%> <%=sourceCurrency%></b> was transferred from <%=payerFspName%> to <%=payeeFspName%> who received <b><%=formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2)%> <%=targetCurrency%></b>.
+                <br /><%=payerFspName%> <%= payerFspName!=payerProxyName ? `was represented by ${payerProxyName} who` : '' %> was debited by <%=formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2)%> <%=sourceCurrency%>.
+                <br /><%=payeeFspName%> <%= payeeFspName!=payeeProxyName ? `was represented by ${payeeProxyName} who` : '' %> was credited by <%=formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2)%> <%=targetCurrency%>.
                 <br />
                 <%= fxpName ? `Conversion was performed by ${fxpName}.` : "No conversion was performed." %>
                 </td>
@@ -495,25 +495,25 @@ spec:
                 <tr>
                 <td>Transfer Amount</td>
                 <td>
-                <b><%= sourceAmount %> <%= sourceCurrency %>
+                <b><%= formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2) %> <%= sourceCurrency %>
                 </td>
                 </tr>
                 <tr>
                 <td>Payee Receive Amount</td>
                 <td>
-                <%= targetAmount %> <%= targetCurrency %>
+                <%= formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
                 </td>
                 </tr>
                 <tr>
                 <td>Payee DFSP Fee</td>
                 <td>
-                <%= payeeFspFeeAmount || 0 %> <%= targetCurrency %>
+                <%= formatAmount(payeeFspFeeAmount || 0, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
                 </td>
                 </tr>
                 <tr>
                 <td>Payee DFSP Commission</td>
                 <td>
-                <%= payeeFspCommissionAmount || 0 %> <%= targetCurrency %>
+                <%= formatAmount(payeeFspCommissionAmount || 0, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
                 </td>
                 </tr>
               <tr>
@@ -551,15 +551,15 @@ spec:
               </tr>
               <tr>
               <td>Conversion Charge Amount</td>
-              <td>
-              <%= sourceAmountConversionCharges %> <%= sourceCurrency %>
-              </td>
-              </tr>
-              <tr>
-              <td>Conversion Charge Amount</td>
-              <td>
-              <%= targetAmountConversionCharges %> <%= targetCurrency %>
-              </td>
+                <td>
+                <%= formatAmount(sourceAmountConversionCharges, currencyMap[sourceCurrency]?.scale || 2) %> <%= sourceCurrency %>
+                </td>
+                </tr>
+                <tr>
+                <td>Conversion Charge Amount</td>
+                <td>
+                <%= formatAmount(targetAmountConversionCharges, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
+                </td>
               </tr>
               <tr>
               <td>Exchange Rate</td>
@@ -644,25 +644,25 @@ spec:
               <tr>
               <td><%= pc.positionChangeParticipantName %></td>
               <td><%= pc.positionChangeCurrency %></td>
-                <td><%= pc.previousPositionChangeValue %></td>
-                <td><%= pc.positionChangeValue %></td>
-                <td><%= new BigNumber(pc.positionChangeValue).minus(pc.previousPositionChangeValue) %></td>
+                  <td><%= formatAmount(pc.previousPositionChangeValue, currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
+                  <td><%= formatAmount(pc.positionChangeValue, currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
+                <td><%= formatAmount(new BigNumber(pc.positionChangeValue).minus(pc.previousPositionChangeValue), currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
                 </tr>
                 <% } %>
                 <% for(let fpc of fxPositionChanges) { %>
                 <tr>
                 <td><%= fpc.positionChangeParticipantName %></td>
                 <td><%= fpc.positionChangeCurrency %></td>
-                <td><%= fpc.previousPositionChangeValue %></td>
-                <td><%= fpc.positionChangeValue %></td>
-                <td><%= new BigNumber(fpc.positionChangeValue).minus(fpc.previousPositionChangeValue) %></td>
+                <td><%= formatAmount(fpc.previousPositionChangeValue, currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
+                <td><%= formatAmount(fpc.positionChangeValue, currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
+                <td><%= formatAmount(new BigNumber(fpc.positionChangeValue).minus(fpc.previousPositionChangeValue), currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
                 </tr>
               <% } %>
             </table>
           </div>
         </div>
 
-
+        <!-- Debug Section
         <pre>
         <code>
           <%= JSON.stringify(transfers, null, 2) %>
@@ -686,7 +686,7 @@ spec:
           <%= JSON.stringify(conversionSettlementBatch, null, 2) %>
         </code>
         </pre>
-
+        -->
         <!-- Footer Section -->
         <div class="footer">
             <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>
