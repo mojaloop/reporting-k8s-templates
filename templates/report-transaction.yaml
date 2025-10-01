@@ -83,7 +83,6 @@ spec:
             `tprt1`.`name` = 'PAYER_DFSP'
             and `tprt2`.`name` = 'PAYEE_DFSP'
             and ( `ftprt1`.`name` = 'COUNTER_PARTY_FSP' OR `ftprt1`.`name` IS NULL)
-            and `tsc`.`createdDate` IS NOT NULL
             AND ( `tsc`.`createdDate` BETWEEN STR_TO_DATE(:startDate, '%Y-%m-%dT%T') AND STR_TO_DATE(:endDate, '%Y-%m-%dT%T'))
         order by
             `completedTimestamp` desc;
@@ -289,11 +288,11 @@ spec:
                         <td><%= tr.endPayeeFsp + (tr.payeeFsp != tr.endPayeeFsp ? ` (${tr.payeeFsp})` : '') %></td>
                         <td><%= tr.fxpName %></td>
                         <td>
-                          <%= tr.sourceAmount ?? tr.payerAmount %>
+                          <%= formatAmount(tr.sourceAmount ?? tr.payerAmount, currencyMap[tr.sourceCurrency ?? tr.currency]?.scale ?? 2) %>
                         </td>
                         <td><%= tr.sourceCurrency ?? tr.currency %></td>
                         <td>
-                          <%= tr.targetAmount ?? tr.payeeAmount %>
+                          <%= formatAmount(tr.targetAmount ?? tr.payeeAmount, currencyMap[tr.targetCurrency ?? tr.currency]?.scale ?? 2) %>
                         </td>
                         <td><%= tr.targetCurrency ?? tr.currency %></td>
                         <td><%= tr.transferState %></td>
@@ -301,12 +300,7 @@ spec:
                 <% } %>
                 </tbody>
             </table>
-            <div class="summary">
-                <details>
-                    <summary>Show raw transfers JSON</summary>
-                    <pre style="white-space: pre-wrap; word-break: break-all;"><%= JSON.stringify(transfers, null, 2) %></pre>
-                </details>
-            </div>
+
             <!-- Footer Section -->
             <div class="footer">
                 <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>

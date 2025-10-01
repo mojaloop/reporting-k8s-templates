@@ -42,19 +42,19 @@ spec:
           fqrct.sourceAmount as conversionTermsSourceAmount,
           fqrct.targetAmount as conversionTermsTargetAmount,
           fxtsc.transferStateId as fxTransferState,
-            `transfer`.*,
-            ft.*,
-            `transfer`.`currencyId` as `currency`,
-            `tp1`.`amount` as `payerAmount`,
-            `da`.`participantId` as `payerParticipantId`,
-            `da`.`name` as `payerFsp`,
-            `tp2`.`amount` as `payeeAmount`,
-            `ca`.`participantId` as `payeeParticipantId`,
-            `ca`.`name` as `payeeFsp`,
-            `fda`.`name` as `fxpName`,
-            `tsc`.`transferStateId` as `transferState`,
-            `tsc`.`reason` as `reason`,
-            `tsc`.`createdDate` as `completedTimestamp`
+          `transfer`.*,
+          ft.*,
+          `transfer`.`currencyId` as `currency`,
+          `tp1`.`amount` as `payerAmount`,
+          `da`.`participantId` as `payerParticipantId`,
+          `da`.`name` as `payerFsp`,
+          `tp2`.`amount` as `payeeAmount`,
+          `ca`.`participantId` as `payeeParticipantId`,
+          `ca`.`name` as `payeeFsp`,
+          `fda`.`name` as `fxpName`,
+          `tsc`.`transferStateId` as `transferState`,
+          `tsc`.`reason` as `reason`,
+          `tsc`.`createdDate` as `completedTimestamp`
         from
             `transfer`
         inner join `transferParticipant` as `tp1` on
@@ -662,7 +662,7 @@ spec:
           </div>
         </div>
 
-        <!-- Debug Section
+
         <pre>
         <code>
           <%= JSON.stringify(transfers, null, 2) %>
@@ -686,7 +686,7 @@ spec:
           <%= JSON.stringify(conversionSettlementBatch, null, 2) %>
         </code>
         </pre>
-        -->
+
         <!-- Footer Section -->
         <div class="footer">
             <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>
