@@ -540,13 +540,13 @@ spec:
               <tr>
               <td>Send Amount</td>
               <td>
-              <%= conversionTermsSourceAmount %> <%= sourceCurrency %>
+              <%= formatAmount(conversionTermsSourceAmount, currencyMap[sourceCurrency]?.scale || 2) %> <%= sourceCurrency %>
               </td>
               </tr>
               <tr>
               <td>Receive Amount</td>
               <td>
-              <%= conversionTermsTargetAmount %> <%= targetCurrency %>
+              <%= formatAmount(conversionTermsTargetAmount, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
               </td>
               </tr>
               <tr>
