@@ -386,22 +386,9 @@ spec:
       const transferId = transfers[0]?.transferId;
       const submittedAt = transfers[0]?.createdDate;
       // Prefer sourceAmount/targetAmount, fallback to payerAmount/payeeAmount
-      const sourceAmount = transfers[0]?.sourceAmount ?? transfers[0]?.payerAmount;
+      const sourceAmount = Math.abs(transfers[0]?.sourceAmount ?? transfers[0]?.payerAmount);
       const sourceCurrency = transfers[0]?.sourceCurrency ?? transfers[0]?.currency;
-      let targetAmount = transfers[0]?.targetAmount ?? transfers[0]?.payeeAmount;
-      // If targetAmount and payeeAmount are the same number but different signs, use payeeAmount
-      const targetAmountNum = targetAmount !== undefined ? Number(targetAmount) : undefined;
-      const payeeAmountNum = transfers[0]?.payeeAmount !== undefined ? Number(transfers[0].payeeAmount) : undefined;
-      if (
-        typeof targetAmountNum === 'number' &&
-        typeof payeeAmountNum === 'number' &&
-        !isNaN(targetAmountNum) &&
-        !isNaN(payeeAmountNum) &&
-        Math.abs(targetAmountNum) === Math.abs(payeeAmountNum) &&
-        targetAmountNum !== payeeAmountNum
-      ) {
-        targetAmount = transfers[0].payeeAmount;
-      }
+      const targetAmount = Math.abs(transfers[0]?.targetAmount ?? transfers[0]?.payeeAmount);
       const targetCurrency = transfers[0]?.targetCurrency ?? transfers[0]?.currency;
       const transferState = transfers[0]?.transferState;
       const transferExpiry = transfers[0]?.transferExpiry;
@@ -675,7 +662,7 @@ spec:
           </div>
         </div>
 
-
+        <!-- Debug Section
         <pre>
         <code>
           <%= JSON.stringify(transfers, null, 2) %>
@@ -699,6 +686,7 @@ spec:
           <%= JSON.stringify(conversionSettlementBatch, null, 2) %>
         </code>
         </pre>
+        -->
 
         <!-- Footer Section -->
         <div class="footer">

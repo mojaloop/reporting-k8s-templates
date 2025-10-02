@@ -288,11 +288,11 @@ spec:
                         <td><%= tr.endPayeeFsp + (tr.payeeFsp != tr.endPayeeFsp ? ` (${tr.payeeFsp})` : '') %></td>
                         <td><%= tr.fxpName %></td>
                         <td>
-                          <%= formatAmount(tr.sourceAmount ?? tr.payerAmount, currencyMap[tr.sourceCurrency ?? tr.currency]?.scale ?? 2) %>
+                          <%= formatAmount(Math.abs(tr.sourceAmount ?? tr.payerAmount), currencyMap[tr.sourceCurrency ?? tr.currency]?.scale ?? 2) %>
                         </td>
                         <td><%= tr.sourceCurrency ?? tr.currency %></td>
                         <td>
-                          <%= formatAmount(tr.targetAmount ?? tr.payeeAmount, currencyMap[tr.targetCurrency ?? tr.currency]?.scale ?? 2) %>
+                          <%= formatAmount(Math.abs(tr.targetAmount ?? tr.payeeAmount), currencyMap[tr.targetCurrency ?? tr.currency]?.scale ?? 2) %>
                         </td>
                         <td><%= tr.targetCurrency ?? tr.currency %></td>
                         <td><%= tr.transferState %></td>

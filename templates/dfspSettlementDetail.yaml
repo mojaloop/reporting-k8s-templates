@@ -544,12 +544,12 @@ spec:
         receivedAmount: senderCurrency && senderCurrency.name === selectedParticipant[0].name
           ? ''
           : (receiverCurrency && receiverCurrency.name === selectedParticipant[0].name
-              ? formatAmount(tx.creditorTotalAmount, currencyMap[receiverCurrency.currencyId]?.scale || 2)
+              ? formatAmount(Math.abs(tx.creditorTotalAmount), currencyMap[receiverCurrency.currencyId]?.scale || 2)
               : ''),
         sentAmount: receiverCurrency && receiverCurrency.name === selectedParticipant[0].name
           ? ''
           : (senderCurrency && senderCurrency.name === selectedParticipant[0].name
-              ? formatAmount(tx.debtorTotalAmount, currencyMap[senderCurrency.currencyId]?.scale || 2)
+              ? formatAmount(Math.abs(tx.debtorTotalAmount), currencyMap[senderCurrency.currencyId]?.scale || 2)
               : ''),
         currency: senderCurrency ? senderCurrency.currencyId : 'N/A',
         };
