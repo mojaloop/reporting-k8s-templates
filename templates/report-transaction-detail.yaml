@@ -42,19 +42,19 @@ spec:
           fqrct.sourceAmount as conversionTermsSourceAmount,
           fqrct.targetAmount as conversionTermsTargetAmount,
           fxtsc.transferStateId as fxTransferState,
-            `transfer`.*,
-            ft.*,
-            `transfer`.`currencyId` as `currency`,
-            `tp1`.`amount` as `payerAmount`,
-            `da`.`participantId` as `payerParticipantId`,
-            `da`.`name` as `payerFsp`,
-            `tp2`.`amount` as `payeeAmount`,
-            `ca`.`participantId` as `payeeParticipantId`,
-            `ca`.`name` as `payeeFsp`,
-            `fda`.`name` as `fxpName`,
-            `tsc`.`transferStateId` as `transferState`,
-            `tsc`.`reason` as `reason`,
-            `tsc`.`createdDate` as `completedTimestamp`
+          `transfer`.*,
+          ft.*,
+          `transfer`.`currencyId` as `currency`,
+          `tp1`.`amount` as `payerAmount`,
+          `da`.`participantId` as `payerParticipantId`,
+          `da`.`name` as `payerFsp`,
+          `tp2`.`amount` as `payeeAmount`,
+          `ca`.`participantId` as `payeeParticipantId`,
+          `ca`.`name` as `payeeFsp`,
+          `fda`.`name` as `fxpName`,
+          `tsc`.`transferStateId` as `transferState`,
+          `tsc`.`reason` as `reason`,
+          `tsc`.`createdDate` as `completedTimestamp`
         from
             `transfer`
         inner join `transferParticipant` as `tp1` on
@@ -73,21 +73,21 @@ spec:
             `ts`.`transferId` = `transfer`.`transferId`
         inner join `transferStateChange` as `tsc` on
             `tsc`.`transferStateChangeId` = `ts`.`maxTransferStateChangeId`
-        inner join `fxTransfer` as ft on
+        left join `fxTransfer` as ft on
             ft.determiningTransferId = transfer.transferId
-        inner join (select fxtsc1.commitRequestId, max(fxtsc1.fxTransferStateChangeId) as maxFxTransferStateChangeId from `fxTransferStateChange` as `fxtsc1` group by fxtsc1.commitRequestId) as fxts on
+        left join (select fxtsc1.commitRequestId, max(fxtsc1.fxTransferStateChangeId) as maxFxTransferStateChangeId from `fxTransferStateChange` as `fxtsc1` group by fxtsc1.commitRequestId) as fxts on
             `fxts`.`commitRequestId` = `ft`.`commitRequestId`
-        inner join `fxTransferStateChange` as `fxtsc` on
+        left join `fxTransferStateChange` as `fxtsc` on
             `fxtsc`.`fxTransferStateChangeId` = `fxts`.`maxFxTransferStateChangeId`
-        inner join `fxTransferParticipant` as `ftp1` on
+        left join `fxTransferParticipant` as `ftp1` on
             `ftp1`.`commitRequestId` = `ft`.`commitRequestId` and `ftp1`.fxParticipantCurrencyTypeId  = 1
-        inner join `transferParticipantRoleType` as `ftprt1` on
+        left join `transferParticipantRoleType` as `ftprt1` on
             `ftprt1`.`transferParticipantRoleTypeId` = `ftp1`.`transferParticipantRoleTypeId`
-        inner join `participant` as `fda` on
+        left join `participant` as `fda` on
             `fda`.`participantId` = `ftp1`.`participantId`
-        inner join fxQuoteConversionTerms fqct on
+        left join fxQuoteConversionTerms fqct on
         	fqct.conversionId = `ft`.`commitRequestId`
-        inner join fxQuoteResponseConversionTerms fqrct on
+        left join fxQuoteResponseConversionTerms fqrct on
         	fqrct.conversionId = `ft`.`commitRequestId`
         inner join quote q on
             q.transactionReferenceId = transfer.transferId
@@ -106,7 +106,7 @@ spec:
         where
             `tprt1`.`name` = 'PAYER_DFSP'
             and `tprt2`.`name` = 'PAYEE_DFSP'
-            and `ftprt1`.`name` = 'COUNTER_PARTY_FSP'
+            and ( `ftprt1`.`name` = 'COUNTER_PARTY_FSP' OR `ftprt1`.`name` IS NULL)
             and `transfer`.`transferId` = :transferId;
     - name: fxCharges
       query: >
@@ -350,6 +350,11 @@ spec:
             .footer p {
                 margin: 5px 0;
             }
+
+            .greyedOut {
+              opacity:0.5;
+              pointer-events:none;
+            }
         </style>
     </head>
     <%
@@ -379,14 +384,15 @@ spec:
 
     <%
       const transferId = transfers[0]?.transferId;
-      const submittedAt = transfers[0]?.createdDate.toLocaleString();
-      const sourceAmount = transfers[0]?.sourceAmount;
-      const sourceCurrency = transfers[0]?.sourceCurrency;
-      const targetAmount = transfers[0]?.targetAmount;
-      const targetCurrency = transfers[0]?.targetCurrency;
+      const submittedAt = transfers[0]?.createdDate;
+      // Prefer sourceAmount/targetAmount, fallback to payerAmount/payeeAmount
+      const sourceAmount = Math.abs(transfers[0]?.sourceAmount ?? transfers[0]?.payerAmount);
+      const sourceCurrency = transfers[0]?.sourceCurrency ?? transfers[0]?.currency;
+      const targetAmount = Math.abs(transfers[0]?.targetAmount ?? transfers[0]?.payeeAmount);
+      const targetCurrency = transfers[0]?.targetCurrency ?? transfers[0]?.currency;
       const transferState = transfers[0]?.transferState;
-      const transferExpiry = transfers[0]?.transferExpiry.toUTCString();
-      const conversionExpiry = transfers[0]?.conversionExpiry.toUTCString();
+      const transferExpiry = transfers[0]?.transferExpiry;
+      const conversionExpiry = transfers[0]?.conversionExpiry;
       const quoteId = transfers[0]?.quoteId;
       const transactionReferenceId = transfers[0]?.transactionReferenceId;
       const commitRequestId = transfers[0]?.commitRequestId;
@@ -433,9 +439,6 @@ spec:
           <p>Transfer ID: <%= transferId %></p>
           <p>State: <%= transferState %></p>
         </div>
-        <div>
-          <br /><a class="highlight-link" href="report-transaction?format=html">View all Transactions</a>
-        </div>
         <div class="grid-container">
           <div class="grid-block">
             <table>
@@ -448,7 +451,8 @@ spec:
                 At <i><%=submittedAt%></i> <b><%=formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2)%> <%=sourceCurrency%></b> was transferred from <%=payerFspName%> to <%=payeeFspName%> who received <b><%=formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2)%> <%=targetCurrency%></b>.
                 <br /><%=payerFspName%> <%= payerFspName!=payerProxyName ? `was represented by ${payerProxyName} who` : '' %> was debited by <%=formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2)%> <%=sourceCurrency%>.
                 <br /><%=payeeFspName%> <%= payeeFspName!=payeeProxyName ? `was represented by ${payeeProxyName} who` : '' %> was credited by <%=formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2)%> <%=targetCurrency%>.
-                <br />Conversion was performed by <%=fxpName%>.
+                <br />
+                <%= fxpName ? `Conversion was performed by ${fxpName}.` : "No conversion was performed." %>
                 </td>
               </tr>
               </tbody>
@@ -488,30 +492,30 @@ spec:
               <tr>
                 <th colspan='100%'>Transfer Terms</th>
               <tr>
-              <tr>
+                <tr>
                 <td>Transfer Amount</td>
                 <td>
-                <b><%=formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2)%> <%=sourceCurrency%>
+                <b><%= formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2) %> <%= sourceCurrency %>
                 </td>
-              </tr>
-              <tr>
+                </tr>
+                <tr>
                 <td>Payee Receive Amount</td>
                 <td>
-                <%=formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2)%> <%=targetCurrency%>
+                <%= formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
                 </td>
-              </tr>
-              <tr>
+                </tr>
+                <tr>
                 <td>Payee DFSP Fee</td>
                 <td>
-                <%= formatAmount(payeeFspFeeAmount || 0, currencyMap[targetCurrency]?.scale || 2) %> <%=targetCurrency%>
+                <%= formatAmount(payeeFspFeeAmount || 0, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
                 </td>
-              </tr>
-              <tr>
+                </tr>
+                <tr>
                 <td>Payee DFSP Commission</td>
                 <td>
-                <%= formatAmount(payeeFspCommissionAmount || 0, currencyMap[targetCurrency]?.scale || 2) %> <%=targetCurrency%>
+                <%= formatAmount(payeeFspCommissionAmount || 0, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
                 </td>
-              </tr>
+                </tr>
               <tr>
                 <td>Transfer Expiry</td>
                 <td>
@@ -527,58 +531,58 @@ spec:
               </tbody>
             </table>
           </div>
-          <div class="grid-block">
+            <div class="grid-block <%= !fxpName ? 'greyedOut' : '' %>">
             <table>
               <tbody>
               <tr>
-                <th colspan='100%'>Currency Conversions Terms</th>
+              <th colspan='100%'>Currency Conversions Terms</th>
               <tr>
               <tr>
-                <td>Send Amount</td>
-                <td>
-                <%= formatAmount(conversionTermsSourceAmount, currencyMap[sourceCurrency]?.scale || 2) %> <%= sourceCurrency %>
-                </td>
+              <td>Send Amount</td>
+              <td>
+              <%= formatAmount(conversionTermsSourceAmount, currencyMap[sourceCurrency]?.scale || 2) %> <%= sourceCurrency %>
+              </td>
               </tr>
               <tr>
-                <td>Receive Amount</td>
-                <td>
-                <%= formatAmount(conversionTermsTargetAmount, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
-                </td>
+              <td>Receive Amount</td>
+              <td>
+              <%= formatAmount(conversionTermsTargetAmount, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
+              </td>
               </tr>
               <tr>
-                <td>Conversion Charge Amount</td>
+              <td>Conversion Charge Amount</td>
                 <td>
                 <%= formatAmount(sourceAmountConversionCharges, currencyMap[sourceCurrency]?.scale || 2) %> <%= sourceCurrency %>
                 </td>
-              </tr>
-              <tr>
+                </tr>
+                <tr>
                 <td>Conversion Charge Amount</td>
                 <td>
                 <%= formatAmount(targetAmountConversionCharges, currencyMap[targetCurrency]?.scale || 2) %> <%= targetCurrency %>
                 </td>
               </tr>
               <tr>
-                <td>Exchange Rate</td>
-                <td>
-                <%= new BigNumber(exchangeRate).toFormat(4) %>
-                (<%= formatAmount(new BigNumber(sourceAmount).minus(sourceAmountConversionCharges), currencyMap[sourceCurrency]?.scale || 2) %>/<%= formatAmount(new BigNumber(targetAmount).minus(targetAmountConversionCharges), currencyMap[targetCurrency]?.scale || 2) %>)
-                </td>
+              <td>Exchange Rate</td>
+              <td>
+              <%= new BigNumber(exchangeRate).toFormat(4) %>
+              (<%= new BigNumber(sourceAmount).minus(sourceAmountConversionCharges) %>/<%= new BigNumber(targetAmount).minus(targetAmountConversionCharges) %>)
+              </td>
               </tr>
               <tr>
-                <td>Conversion Expiry</td>
-                <td>
-                <%= conversionExpiry %>
-                </td>
+              <td>Conversion Expiry</td>
+              <td>
+              <%= conversionExpiry %>
+              </td>
               </tr>
               <tr>
-                <td>Conversion Settlement Batch</td>
-                <td>
-                <%= conversionSettlementBatchId || 'Not yet settled' %>
-                </td>
+              <td>Conversion Settlement Batch</td>
+              <td>
+              <%= conversionSettlementBatchId || 'Not yet settled' %>
+              </td>
               </tr>
               </tbody>
             </table>
-          </div>
+            </div>
           <div class="grid-block">
             <table cellpadding='0' cellspacing='0'>
               <tbody>
@@ -640,26 +644,25 @@ spec:
               <tr>
               <td><%= pc.positionChangeParticipantName %></td>
               <td><%= pc.positionChangeCurrency %></td>
-              <td><%= formatAmount(pc.previousPositionChangeValue, currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
-              <td><%= formatAmount(pc.positionChangeValue, currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
-              <td><%= formatAmount(new BigNumber(pc.positionChangeValue).minus(pc.previousPositionChangeValue), currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
-              </tr>
-              <% } %>
-              <% for(let fpc of fxPositionChanges) { %>
-              <tr>
-              <td><%= fpc.positionChangeParticipantName %></td>
-              <td><%= fpc.positionChangeCurrency %></td>
-              <td><%= formatAmount(fpc.previousPositionChangeValue, currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
-              <td><%= formatAmount(fpc.positionChangeValue, currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
-              <td><%= formatAmount(new BigNumber(fpc.positionChangeValue).minus(fpc.previousPositionChangeValue), currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
-              </tr>
+                  <td><%= formatAmount(pc.previousPositionChangeValue, currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
+                  <td><%= formatAmount(pc.positionChangeValue, currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
+                <td><%= formatAmount(new BigNumber(pc.positionChangeValue).minus(pc.previousPositionChangeValue), currencyMap[pc.positionChangeCurrency]?.scale || 2) %></td>
+                </tr>
+                <% } %>
+                <% for(let fpc of fxPositionChanges) { %>
+                <tr>
+                <td><%= fpc.positionChangeParticipantName %></td>
+                <td><%= fpc.positionChangeCurrency %></td>
+                <td><%= formatAmount(fpc.previousPositionChangeValue, currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
+                <td><%= formatAmount(fpc.positionChangeValue, currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
+                <td><%= formatAmount(new BigNumber(fpc.positionChangeValue).minus(fpc.previousPositionChangeValue), currencyMap[fpc.positionChangeCurrency]?.scale || 2) %></td>
+                </tr>
               <% } %>
             </table>
           </div>
         </div>
 
-
-        <!--
+        <!-- Debug Section
         <pre>
         <code>
           <%= JSON.stringify(transfers, null, 2) %>
