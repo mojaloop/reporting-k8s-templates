@@ -1,0 +1,414 @@
+{{- if .Values.templates.settlementDirectory -}}
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: {{ printf "%s-%s" .Release.Name "settlement-directory" | trimPrefix "-" }}
+  {{ include "common.annotations" . | nindent 2 }}
+spec:
+  endpoint:
+    path: /settlementDirectory
+  permission: transferApi
+  queries:
+    - name: availableSettlements
+      query: >
+        SELECT
+          settlementId,
+          createdDate,
+          settlementModelId
+        FROM settlement
+        ORDER BY createdDate DESC;
+    - name: getAllParticipants
+      query: >
+        SELECT
+          p.participantId,
+          p.name as participantName
+        FROM participant AS p
+        ORDER BY p.participantId;
+    - name: allExternalParticipants
+      query: >
+        SELECT
+          ep.externalParticipantId,
+          ep.name as externalParticipantName,
+          ep.createdDate,
+          ep.proxyId
+        FROM externalParticipant AS ep
+        ORDER BY ep.externalParticipantId;
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Mojaloop Report Directory</title>
+      <style>
+          body {
+              font-family: 'Arial', sans-serif;
+              background-color: #f5f5f5;
+              margin: 0;
+              padding: 20px;
+              color: #333;
+          }
+
+          .container {
+              max-width: 100%;
+              margin: 0 auto;
+              background-color: #fff;
+              padding: 20px;
+              box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+          }
+
+          .grid-container {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 20px;
+          }
+
+          .grid-block {
+              padding: 2px;
+              border-radius: 8px;
+          }
+
+          .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-bottom: 2px solid #00447c;
+              padding-bottom: 10px;
+          }
+
+          .header h1 {
+              margin: 0;
+              color: #00447c;
+              font-size: 24px;
+          }
+
+          .header img {
+              max-height: 50px;
+          }
+
+          .summary {
+              margin-top: 20px;
+              padding: 15px;
+              background-color: #e9f3fa;
+              border-left: 6px solid #00447c;
+              border-radius: 5px;
+              box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+              max-width: 500px;
+          }
+
+          .summary p {
+              margin: 5px 0;
+              font-weight: bold;
+          }
+
+          table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+          }
+
+          table, th, td {
+              border: 1px solid #ddd;
+          }
+
+          th {
+              background-color: #00447c;
+              color: #fff;
+              padding: 10px;
+              font-size: 1.0em;
+          }
+
+          td {
+              line-height: 1.6;
+              padding: 10px;
+              text-align: left;
+              font-size: 0.9em;
+          }
+
+          tr:nth-child(even) {
+              background-color: #f2f2f2;
+          }
+
+          .smallFont {
+              font-size: 0.7em;
+          }
+
+          .thStyle {
+              background-color: #00447c;
+              color: #fff;
+              padding: 10px;
+              font-size: 1.0em;
+          }
+
+          .button-link {
+              display: inline-block;
+              padding: 10px 20px;
+              font-size: 16px;
+              color: #fff;
+              background-color: #007bff;
+              text-decoration: none;
+              border-radius: 5px;
+              transition: background-color 0.3s, transform 0.2s;
+              font-weight: 500;
+              box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+          }
+
+          .button-link:hover {
+              background-color: #0056b3;
+              transform: translateY(-2px);
+              box-shadow: 0 6px 12px rgba(0, 86, 179, 0.3);
+          }
+
+          .button-link:active {
+              transform: translateY(0);
+              box-shadow: 0 4px 8px rgba(0, 86, 179, 0.2);
+          }
+
+          .highlight-link {
+              color: #007bff;
+              text-decoration: none;
+              padding: 3px 5px;
+              border-radius: 3px;
+              transition: background-color 0.2s, color 0.2s;
+          }
+
+          .highlight-link:hover {
+              background-color: #00447c;
+              color: white;
+          }
+
+          .footer {
+              margin-top: 20px;
+              text-align: center;
+              font-size: 0.9em;
+              color: #666;
+          }
+
+          .footer p {
+              margin: 5px 0;
+          }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+      <h1>Mojaloop Report Directory</h1>
+      <p>This directory lists available settlement reports and provides direct links for easy access.</p>
+
+      <!-- Bilateral Settlement Table -->
+      <h2>Bilateral Settlement</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>Required Params</th>
+          <th>Example URLs</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td>settlementId</td>
+          <td>
+        <%
+          const sortedBilateral = [...availableSettlements].sort((a, b) => b.settlementId - a.settlementId);
+          for (let i = 0; i < sortedBilateral.length; i++) {
+            const s = sortedBilateral[i];
+        %>
+          <a class="url-link" href="/api/reports/report-bilateral-settlement?settlementId=<%= s.settlementId %>">
+            <%= s.settlementId %>
+          </a><% if (i < sortedBilateral.length - 1) { %>, <% } %>
+        <% } %>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+
+      <!-- Multilateral Settlement Table -->
+      <h2>Multilateral Settlement</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>Required Params</th>
+          <th>Example URLs</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td>settlementId</td>
+          <td>
+        <%
+          const sortedMulti = [...availableSettlements].sort((a, b) => b.settlementId - a.settlementId);
+          for (let i = 0; i < sortedMulti.length; i++) {
+            const s = sortedMulti[i];
+        %>
+          <a class="url-link" href="/api/reports/report-multilateral-settlement?settlementId=<%= s.settlementId %>">
+            <%= s.settlementId %>
+          </a><% if (i < sortedMulti.length - 1) { %>, <% } %>
+        <% } %>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+
+      <!-- DFSP Settlement Table -->
+      <h2>DFSP Settlement</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>Participant Name</th>
+          <th>Settlement IDs (links)</th>
+        </tr>
+        </thead>
+        <tbody>
+        <%
+          // Sort participants alphabetically by participantName
+          const sortedParticipants = [...getAllParticipants].sort((a, b) => a.participantName.localeCompare(b.participantName));
+          for (const p of sortedParticipants) {
+        %>
+          <tr>
+        <td><%= p.participantName %></td>
+        <td>
+          <%
+        // List all settlementIds for this participant
+        const sortedSettlements = [...availableSettlements].sort((a, b) => b.settlementId - a.settlementId);
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+          %>
+        <a class="url-link" href="/api/reports/dfspSettlement?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>">
+          <%= sid %>
+        </a><% if (i < sortedSettlements.length - 1) { %>, <% } %>
+          <% } %>
+        </td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+
+      <!-- DFSP Settlement Detail Table (by Participant) -->
+      <h2>DFSP Settlement Detail (by Participant)</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>Participant Name</th>
+          <th>Settlement IDs (links)</th>
+        </tr>
+        </thead>
+        <tbody>
+        <%
+          // Sort participants alphabetically by participantName
+          const sortedParticipantsDetail = [...getAllParticipants].sort((a, b) => a.participantName.localeCompare(b.participantName));
+          for (const p of sortedParticipantsDetail) {
+        %>
+          <tr>
+        <td><%= p.participantName %></td>
+        <td>
+          <%
+        // List all settlementIds for this participant
+        const sortedSettlements = [...availableSettlements].sort((a, b) => b.settlementId - a.settlementId);
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+          %>
+        <a class="url-link" href="/api/reports/dfspSettlementDetail?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>">
+          <%= sid %>
+        </a><% if (i < sortedSettlements.length - 1) { %>, <% } %>
+          <% } %>
+        </td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+
+      <!-- DFSP Settlement External Participant Table -->
+      <h2>DFSP Settlement External Participant</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>External Participant Name</th>
+          <th>Settlement IDs (links)</th>
+        </tr>
+        </thead>
+        <tbody>
+        <%
+          // Sort external participants alphabetically by externalParticipantName
+          const sortedExternalParticipants = [...allExternalParticipants].sort((a, b) => a.externalParticipantName.localeCompare(b.externalParticipantName));
+          for (const ep of sortedExternalParticipants) {
+        %>
+          <tr>
+        <td><%= ep.externalParticipantName %></td>
+        <td>
+          <%
+        // List all settlementIds for this external participant, regardless of participation
+        const sortedSettlements = [...availableSettlements].sort((a, b) => b.settlementId - a.settlementId);
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+          %>
+        <a class="url-link" href="/api/reports/dfspSettlementExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(ep.externalParticipantName) %>">
+          <%= sid %>
+        </a><% if (i < sortedSettlements.length - 1) { %>, <% } %>
+          <% } %>
+        </td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+
+      <!-- DFSP Settlement Detail External Participant Table -->
+      <h2>DFSP Settlement Detail External Participant</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>External Participant Name</th>
+          <th>Settlement IDs (links)</th>
+        </tr>
+        </thead>
+        <tbody>
+        <%
+          // Sort external participants alphabetically by externalParticipantName
+          const sortedExternalParticipantsDetail = [...allExternalParticipants].sort((a, b) => a.externalParticipantName.localeCompare(b.externalParticipantName));
+          for (const ep of sortedExternalParticipantsDetail) {
+        %>
+          <tr>
+        <td><%= ep.externalParticipantName %></td>
+        <td>
+          <%
+        // List all settlementIds for this external participant, regardless of participation
+        const sortedSettlements = [...availableSettlements].sort((a, b) => b.settlementId - a.settlementId);
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+          %>
+        <a class="url-link" href="/api/reports/dfspSettlementDetailExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(ep.externalParticipantName) %>">
+          <%= sid %>
+        </a><% if (i < sortedSettlements.length - 1) { %>, <% } %>
+          <% } %>
+        </td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+
+      <!-- Reporting Bilateral Settlements External Participants Table -->
+      <h2>Reporting Bilateral Settlements External Participants</h2>
+      <table>
+        <thead>
+          <tr>
+        <th>Required Params</th>
+        <th>Example URLs</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+        <td>settlementId</td>
+        <td>
+          <%
+        const sortedSettlements = [...availableSettlements].sort((a, b) => b.settlementId - a.settlementId);
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const s = sortedSettlements[i];
+          %>
+        <a class="url-link" href="/api/reports/reporting-bilateral-settlements-external-participants?settlementId=<%= s.settlementId %>">
+          <%= s.settlementId %>
+        </a><% if (i < sortedSettlements.length - 1) { %>, <% } %>
+          <% } %>
+        </td>
+          </tr>
+        </tbody>
+      </table>
+    </body>
+    </html>
+{{- end }}

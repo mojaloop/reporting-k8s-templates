@@ -403,7 +403,12 @@ spec:
 
         ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
 
-        GROUP BY result1.participantCurrencyId, result2.participantCurrencyId, result1.pid, result2.pid, result1.externalParticipantId, result2.externalParticipantId;
+        GROUP BY
+          result1.participantCurrencyId,
+          result2.participantCurrencyId,
+          result1.externalParticipantId,
+          result2.externalParticipantId
+        ;
   template: |
     <!DOCTYPE html>
     <html lang="en">
