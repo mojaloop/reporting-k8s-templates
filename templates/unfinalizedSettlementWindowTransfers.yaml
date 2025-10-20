@@ -1,38 +1,47 @@
-{{- if .Values.templates.settlementUnfinalized -}}
+{{- if .Values.templates.unfinalizedSettlementWindowTransfers -}}
 apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
-  name: {{ printf "%s-%s" .Release.Name "settlement-unfinalized" | trimPrefix "-" }}
+  name: {{ printf "%s-%s" .Release.Name "unfinalized-settlement-window-transfers" | trimPrefix "-" }}
   {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     params:
-    - name: startDate
+    - name: settlementWindowId
       required: true
-    - name: endDate
-      required: true
-    path: /settlementUnfinalized
-  permission: transferApi
+    path: /unfinalizedSettlementWindowTransfers
+  permission: report-settlement-window
   queries:
-    - name: unfinalizedTransfers
+    - name: unfinalizedTransfersInWindow
       query: >
         SELECT
           p.name AS participantName,
+          ep.name AS externalParticipantName,
           tsc.transferStateId,
           t.transferId,
           t.amount,
           t.currencyId,
-          t.createdDate
-        FROM transferStateChange tsc
+          t.createdDate,
+          tp.*
+        FROM transferFulfilment tf
+        INNER JOIN transferStateChange tsc
+          ON tsc.transferId = tf.transferId
         INNER JOIN (
           SELECT transferId, MAX(transferStateChangeId) AS maxChangeId
           FROM transferStateChange
           GROUP BY transferId
         ) latest
-        ON tsc.transferId = latest.transferId AND tsc.transferStateChangeId = latest.maxChangeId
-        JOIN transfer t ON t.transferId = tsc.transferId
-        JOIN transferParticipant tp ON tp.transferId = t.transferId
-        JOIN participant p ON p.participantId = tp.participantId
+          ON tsc.transferId = latest.transferId AND tsc.transferStateChangeId = latest.maxChangeId
+        INNER JOIN transfer t
+          ON t.transferId = tf.transferId
+        INNER JOIN transferParticipant tp
+          ON tp.transferId = tf.transferId AND tp.transferParticipantRoleTypeId IN ('1', 'PAYER_DFSP', '2', 'PAYEE_DFSP')
+        INNER JOIN participant p
+          ON p.participantId = tp.participantId
+        LEFT JOIN externalParticipant ep
+          ON ep.externalParticipantId = tp.externalParticipantId
+        INNER JOIN settlementSettlementWindow ssw
+          ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementWindowId = :settlementWindowId
         WHERE tsc.transferStateId NOT IN (
           'COMMITTED',
           'EXPIRED_RESERVED',
@@ -42,14 +51,12 @@ spec:
           'FAILED',
           'INVALID'
         )
-        AND tp.transferParticipantRoleTypeId = 1
-        AND t.createdDate >= :startDate
-        AND t.createdDate <= :endDate
         ORDER BY tsc.transferStateId, t.transferId;
-    - name: unfinalizedFxTransfers
+    - name: unfinalizedFxTransfersInWindow
       query: >
         SELECT
           p.name AS participantName,
+          ep.name AS externalParticipantName,
           ftsc.transferStateId,
           ft.commitRequestId,
           ft.determiningTransferId,
@@ -57,19 +64,28 @@ spec:
           ft.sourceCurrency,
           ft.targetAmount,
           ft.targetCurrency,
-          ft.createdDate
-        FROM fxTransfer ft
+          ft.createdDate,
+          ftp.*
+        FROM fxTransferFulfilment fxtf
+        INNER JOIN fxTransfer ft
+          ON ft.commitRequestId = fxtf.commitRequestId
         INNER JOIN (
           SELECT commitRequestId, MAX(fxTransferStateChangeId) AS maxChangeId
           FROM fxTransferStateChange
           GROUP BY commitRequestId
         ) latest
-        ON ft.commitRequestId = latest.commitRequestId
-        JOIN fxTransferParticipant ftp ON ftp.commitRequestId = ft.commitRequestId
-        JOIN participant p ON p.participantId = ftp.participantId
-        JOIN fxTransferStateChange ftsc ON ftsc.fxTransferStateChangeId = latest.maxChangeId
-        WHERE ftp.transferParticipantRoleTypeId = 6
-        AND ftsc.transferStateId NOT IN (
+          ON fxtf.commitRequestId = latest.commitRequestId
+        INNER JOIN fxTransferParticipant ftp
+          ON ftp.commitRequestId = ft.commitRequestId AND ftp.transferParticipantRoleTypeId IN ('6', 'INITIATING', '7', 'COUNTER_PARTY')
+        INNER JOIN participant p
+          ON p.participantId = ftp.participantId
+        LEFT JOIN externalParticipant ep
+          ON ep.externalParticipantId = ftp.externalParticipantId
+        INNER JOIN fxTransferStateChange ftsc
+          ON ftsc.commitRequestId = ft.commitRequestId AND ftsc.fxTransferStateChangeId = latest.maxChangeId
+        INNER JOIN settlementSettlementWindow ssw
+          ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementWindowId = :settlementWindowId
+        WHERE ftsc.transferStateId NOT IN (
           'COMMITTED',
           'EXPIRED_RESERVED',
           'ABORTED_ERROR',
@@ -78,26 +94,41 @@ spec:
           'FAILED',
           'INVALID'
         )
-        AND ft.createdDate >= :startDate
-        AND ft.createdDate <= :endDate
         ORDER BY ftsc.transferStateId, ft.commitRequestId;
     - name: getAllCurrency
       query: >
         SELECT
           currencyId,
           scale,
-          name,
-          :startDate as startDate,
-          :endDate as endDate
+          name
         FROM currency
         ORDER BY currencyId;
+    - name: getSettlementWindowDetails
+      query: >
+        SELECT
+          sw.settlementWindowId,
+          sw.createdDate AS windowOpen,
+          swc.createdDate AS windowClosed,
+          sws.settlementWindowStateId AS state
+        FROM settlementWindow sw
+        LEFT JOIN central_ledger.settlementWindowStateChange swc
+          ON swc.settlementWindowId = sw.settlementWindowId
+          AND swc.settlementWindowStateId = 'CLOSED'
+        LEFT JOIN (
+          SELECT settlementWindowId, settlementWindowStateId
+          FROM central_ledger.settlementWindowStateChange
+          WHERE settlementWindowId = :settlementWindowId
+          ORDER BY createdDate DESC
+          LIMIT 1
+        ) sws ON sws.settlementWindowId = sw.settlementWindowId
+        WHERE sw.settlementWindowId = :settlementWindowId;
   template: |
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Unfinalized Transfers & FXTransfers</title>
-       <style>
+      <title>Unfinalized Transfers in Settlement Window</title>
+        <style>
             body {
                 font-family: 'Arial', sans-serif;
                 background-color: #f5f5f5;
@@ -112,6 +143,17 @@ spec:
                 background-color: #fff;
                 padding: 20px;
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+
+            .grid-container {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+            }
+
+            .grid-block {
+                padding: 2px;
+                border-radius: 8px;
             }
 
             .header {
@@ -139,7 +181,7 @@ spec:
                 border-left: 6px solid #00447c;
                 border-radius: 5px;
                 box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                max-width: 300px;
+                max-width: 500px;
             }
 
             .summary p {
@@ -165,17 +207,49 @@ spec:
             }
 
             td {
+                line-height: 1.6;
                 padding: 10px;
                 text-align: left;
                 font-size: 0.9em;
             }
 
-            tr:nth-child(even) {
-                background-color: #f2f2f2;
+            .main-row {
+                background-color: #1980a940;
             }
 
             .smallFont {
                 font-size: 0.7em;
+            }
+
+            .thStyle {
+                background-color: #00447c;
+                color: #fff;
+                padding: 10px;
+                font-size: 1.0em;
+            }
+
+            .button-link {
+                display: inline-block;
+                padding: 10px 20px;
+                font-size: 16px;
+                color: #fff;
+                background-color: #007bff;
+                text-decoration: none;
+                border-radius: 5px;
+                transition: background-color 0.3s, transform 0.2s;
+                font-weight: 500;
+                box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+            }
+
+            .button-link:hover {
+                background-color: #0056b3;
+                transform: translateY(-2px);
+                box-shadow: 0 6px 12px rgba(0, 86, 179, 0.3);
+            }
+
+            .button-link:active {
+                transform: translateY(0);
+                box-shadow: 0 4px 8px rgba(0, 86, 179, 0.2);
             }
 
             .highlight-link {
@@ -199,7 +273,21 @@ spec:
             }
 
             .footer p {
-                margin: 5px 0;
+                margin: 4px 0;
+            }
+
+            .marginBottom10px {
+                margin-bottom: 10px;
+            }
+
+            .currency-header-row {
+              background-color: #e9f3fa;
+              font-weight: bold;
+              text-align: left;
+            }
+
+            .offwhite {
+              background-color: #f9f9f9;
             }
         </style>
     </head>
@@ -226,79 +314,109 @@ spec:
       for (const c of getAllCurrency) {
         currencyMap[c.currencyId] = c;
       }
+
+      const swDetails = getSettlementWindowDetails[0] || {};
+      const windowOpenStr = swDetails.windowOpen ? new Date(swDetails.windowOpen).toLocaleString() : '';
+      const windowClosedStr = swDetails.windowClosed ? new Date(swDetails.windowClosed).toLocaleString() : '';
+      const windowState = swDetails.state || '';
     %>
-
     <body>
-
       <div class="container">
         <div class="header">
-            <h1>DRPP Transaction Report</h1>
-            {{- if .Values.templates.topBarLogoUrl -}}
-            <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
-            {{- end }}
+          <h1>Unfinalized Transfers in Settlement Window</h1>
+          {{- if .Values.templates.topBarLogoUrl -}}
+          <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
+          {{- end }}
         </div>
-
         <div class="summary">
-          <p>Total Transactions: <%= unfinalizedTransfers.length + unfinalizedFxTransfers.length %></p>
-          <%
-            // startDate and endDate are ISO strings, e.g., 2025-08-20T07:16:09 00:00
-            let startDateRaw = (getAllCurrency[0]?.startDate || '').trim();
-            let endDateRaw = (getAllCurrency[0]?.endDate || '').trim();
-
-            // Remove any trailing timezone if present (e.g., " 00:00" or " +00:00")
-            let startDateClean = startDateRaw.replace(/\s[+\-]?\d{2}:?\d{2}$/, '');
-            let endDateClean = endDateRaw.replace(/\s[+\-]?\d{2}:?\d{2}$/, '');
-
-            // Replace first space with 'T' to make it ISO if needed
-            let startDateIso = startDateClean.replace(' ', 'T');
-            let endDateIso = endDateClean.replace(' ', 'T');
-
-            // Parse and check for valid date
-            function safeLocaleString(dateStr) {
-              const d = new Date(dateStr);
-              return isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, { hour12: false });
-            }
-
-            let startDateStr = startDateIso ? safeLocaleString(startDateIso) : '';
-            let endDateStr = endDateIso ? safeLocaleString(endDateIso) : '';
-          %>
-          <p>Start Date: <%= startDateStr %></p>
-          <p>End Date: <%= endDateStr %></p>
+          <p>Settlement Window ID: <%= swDetails.settlementWindowId || '' %></p>
+          <p>State: <%= windowState %></p>
+          <p>Opened: <%= windowOpenStr %></p>
+          <p>Closed: <%= windowClosedStr %></p>
+          <p>Total Unfinalized Transfers: <%= unfinalizedTransfersInWindow.length + unfinalizedFxTransfersInWindow.length %></p>
         </div>
-
-        <h1>Unfinalized Transfers</h1>
+        <h2>Unfinalized Transfers</h2>
         <table>
           <thead>
             <tr>
-              <th>Participant Name</th>
+              <th>Payer FSP</th>
+              <th>Payee FSP</th>
               <th>Transfer ID</th>
               <th>State</th>
               <th>Amount</th>
               <th>Currency</th>
               <th>Created Date</th>
-              <th>Completed Date</th>
             </tr>
           </thead>
           <tbody>
-            <% for (const t of unfinalizedTransfers) { %>
+            <%
+              // Group by transferId and extract payer/payee
+              const transferGroups = {};
+              for (const t of unfinalizedTransfersInWindow) {
+          if (!transferGroups[t.transferId]) transferGroups[t.transferId] = [];
+          transferGroups[t.transferId].push(t);
+              }
+              // Group transferGroups by currency
+              const currencyTransferMap = {};
+              for (const transferId in transferGroups) {
+          const group = transferGroups[transferId];
+          const t = group[0];
+          const currency = t.currencyId || 'N/A';
+          if (!currencyTransferMap[currency]) currencyTransferMap[currency] = [];
+          currencyTransferMap[currency].push(group);
+              }
+              for (const currency in currencyTransferMap) {
+            %>
+              <!-- Spacer row with currency name -->
               <tr>
-                <td><%= t.participantName %></td>
-                <td><%= t.transferId %></td>
-                <td><%= t.transferStateId %></td>
-                <td><%= formatAmount(t.amount, currencyMap[t.currencyId]?.scale || 2) %></td>
-                <td><%= currencyMap[t.currencyId]?.currencyId || t.currencyId %></td>
-                <td><%= t.createdDate ? new Date(t.createdDate).toLocaleString() : '' %></td>
-                <td><%= t.completedDate ? new Date(t.completedDate).toLocaleString() : '' %></td>
+          <td colspan="7" class="currency-header-row">
+            <%= currencyMap[currency]?.currencyId || currency %>
+          </td>
               </tr>
+              <%
+          for (const group of currencyTransferMap[currency]) {
+            let payerFsp = '', payeeFsp = '';
+            let payerName = '', payerExternal = '', payeeName = '', payeeExternal = '';
+            for (const t of group) {
+              const roleId = String(t.transferParticipantRoleTypeId).toUpperCase();
+              if (roleId === '1' || roleId === 'PAYER_DFSP') {
+                payerName = t.participantName || '';
+                payerExternal = t.externalParticipantName || '';
+              }
+              if (roleId === '2' || roleId === 'PAYEE_DFSP') {
+                payeeName = t.participantName || '';
+                payeeExternal = t.externalParticipantName || '';
+              }
+            }
+            function displayName(participantName, externalParticipantName) {
+              return externalParticipantName
+                ? `${participantName} (${externalParticipantName})`
+                : participantName;
+            }
+            payerFsp = displayName(payerName, payerExternal);
+            payeeFsp = displayName(payeeName, payeeExternal);
+            // Use first row for other fields
+            const t = group[0];
+              %>
+              <tr>
+          <td><%= payerFsp %></td>
+          <td><%= payeeFsp %></td>
+          <td><%= t.transferId %></td>
+          <td><%= t.transferStateId %></td>
+          <td><%= formatAmount(Math.abs(t.amount), currencyMap[t.currencyId]?.scale || 2) %></td>
+          <td><%= currencyMap[t.currencyId]?.currencyId || t.currencyId %></td>
+          <td><%= t.createdDate ? new Date(t.createdDate).toLocaleString() : '' %></td>
+              </tr>
+              <% } %>
             <% } %>
           </tbody>
         </table>
-
-        <h1 style="margin-top:40px;">Unfinalized FX Transfers</h1>
+        <h2 style="margin-top:40px;">Unfinalized FX Transfers</h2>
         <table>
           <thead>
             <tr>
-              <th>Participant Name</th>
+              <th>Initiating FSP</th>
+              <th>Counter Party FSP</th>
               <th>Commit Request ID</th>
               <th>Determining Transfer ID</th>
               <th>State</th>
@@ -310,18 +428,67 @@ spec:
             </tr>
           </thead>
           <tbody>
-            <% for (const fx of unfinalizedFxTransfers) { %>
+            <%
+              // Group by commitRequestId and extract initiating/counterparty
+              const fxGroups = {};
+              for (const fx of unfinalizedFxTransfersInWindow) {
+          if (!fxGroups[fx.commitRequestId]) fxGroups[fx.commitRequestId] = [];
+          fxGroups[fx.commitRequestId].push(fx);
+              }
+              // Group fxGroups by sourceCurrency
+              const fxCurrencyMap = {};
+              for (const commitRequestId in fxGroups) {
+          const group = fxGroups[commitRequestId];
+          const fx = group[0];
+          const currency = fx.sourceCurrency || 'N/A';
+          if (!fxCurrencyMap[currency]) fxCurrencyMap[currency] = [];
+          fxCurrencyMap[currency].push(group);
+              }
+              for (const currency in fxCurrencyMap) {
+            %>
+              <!-- Spacer row with currency name -->
               <tr>
-                <td><%= fx.participantName %></td>
-                <td><%= fx.commitRequestId %></td>
-                <td><%= fx.determiningTransferId %></td>
-                <td><%= fx.transferStateId %></td>
-                <td><%= formatAmount(fx.sourceAmount, currencyMap[fx.sourceCurrency]?.scale || 2) %></td>
-                <td><%= currencyMap[fx.sourceCurrency]?.currencyId || fx.sourceCurrency %></td>
-                <td><%= formatAmount(fx.targetAmount, currencyMap[fx.targetCurrency]?.scale || 2) %></td>
-                <td><%= currencyMap[fx.targetCurrency]?.currencyId || fx.targetCurrency %></td>
-                <td><%= fx.createdDate ? new Date(fx.createdDate).toLocaleString() : '' %></td>
+          <td colspan="10" class="currency-header-row">
+            <%= currencyMap[currency]?.currencyId || currency %>
+          </td>
               </tr>
+              <%
+          for (const group of fxCurrencyMap[currency]) {
+            let initiatingName = '', initiatingExternal = '', counterPartyName = '', counterPartyExternal = '';
+            for (const fx of group) {
+              const roleId = String(fx.transferParticipantRoleTypeId).toUpperCase();
+              if (roleId === '6' || roleId === 'INITIATING') {
+                initiatingName = fx.participantName || '';
+                initiatingExternal = fx.externalParticipantName || '';
+              }
+              if (roleId === '7' || roleId === 'COUNTER_PARTY') {
+                counterPartyName = fx.participantName || '';
+                counterPartyExternal = fx.externalParticipantName || '';
+              }
+            }
+            function displayName(participantName, externalParticipantName) {
+              return externalParticipantName
+                ? `${participantName} (${externalParticipantName})`
+                : participantName;
+            }
+            const initiatingFsp = displayName(initiatingName, initiatingExternal);
+            const counterPartyFsp = displayName(counterPartyName, counterPartyExternal);
+            // Use first row for other fields
+            const fx = group[0];
+              %>
+              <tr>
+          <td><%= initiatingFsp %></td>
+          <td><%= counterPartyFsp %></td>
+          <td><%= fx.commitRequestId %></td>
+          <td><%= fx.determiningTransferId %></td>
+          <td><%= fx.transferStateId %></td>
+          <td><%= formatAmount(Math.abs(fx.sourceAmount), currencyMap[fx.sourceCurrency]?.scale || 2) %></td>
+          <td><%= currencyMap[fx.sourceCurrency]?.currencyId || fx.sourceCurrency %></td>
+          <td><%= formatAmount(Math.abs(fx.targetAmount), currencyMap[fx.targetCurrency]?.scale || 2) %></td>
+          <td><%= currencyMap[fx.targetCurrency]?.currencyId || fx.targetCurrency %></td>
+          <td><%= fx.createdDate ? new Date(fx.createdDate).toLocaleString() : '' %></td>
+              </tr>
+              <% } %>
             <% } %>
           </tbody>
         </table>
