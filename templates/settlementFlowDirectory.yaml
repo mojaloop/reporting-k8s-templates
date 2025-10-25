@@ -1,0 +1,375 @@
+{{- if .Values.templates.settlementFlowDirectory -}}
+apiVersion: mojaloop.io/v1
+kind: MojaloopReport
+metadata:
+  name: {{ printf "%s-%s" .Release.Name "settlement-flow-directory" | trimPrefix "-" }}
+  {{ include "common.annotations" . | indent 2 }}
+spec:
+  endpoint:
+    path: /settlementFlowDirectory
+  permission: transferApi
+  queries:
+    - name: availableSettlements
+      query: >
+        SELECT
+          s.settlementId,
+          s.createdDate,
+          s.settlementModelId,
+          (
+        SELECT JSON_ARRAYAGG(p.name)
+        FROM settlementParticipantCurrency spc
+        INNER JOIN participantCurrency pc ON spc.participantCurrencyId = pc.participantCurrencyId
+        INNER JOIN participant p ON pc.participantId = p.participantId
+        WHERE spc.settlementId = s.settlementId
+          ) AS includedParticipants
+        FROM settlement s
+        ORDER BY s.createdDate DESC;
+    - name: availableSettlementWindows
+      query: >
+        SELECT
+          settlementWindowId
+        FROM settlementWindow
+        ORDER BY createdDate DESC;
+    - name: getAllParticipants
+      query: >
+        SELECT
+          p.participantId,
+          p.name as participantName
+        FROM participant AS p
+        WHERE p.isProxy = 0
+        ORDER BY p.participantId;
+    - name: getAllExternalParticipants
+      query: >
+        SELECT
+          ep.externalParticipantId,
+          ep.name as participantName
+        FROM externalParticipant AS ep
+        ORDER BY ep.externalParticipantId;
+  template: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Mojaloop Settlement Flow Directory</title>
+      <style>
+          body {
+              font-family: 'Arial', sans-serif;
+              background-color: #f5f5f5;
+              margin: 0;
+              padding: 20px;
+              color: #333;
+          }
+          .container {
+              max-width: 100%;
+              margin: 0 auto;
+              background-color: #fff;
+              padding: 20px;
+              box-shadow: 0 2px 10px #cccccc;
+          }
+          table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+          }
+          table, th, td {
+              border: 1px solid #ddd;
+          }
+          th {
+              background-color: #00447c;
+              color: #fff;
+              padding: 10px;
+              font-size: 1.0em;
+          }
+          td {
+              line-height: 1.6;
+              padding: 10px;
+              text-align: left;
+              font-size: 0.9em;
+          }
+          tr:nth-child(even) {
+              background-color: #f2f2f2;
+          }
+          .url-link {
+              color: #007bff;
+              text-decoration: none;
+              padding: 3px 5px;
+              border-radius: 3px;
+              transition: background-color 0.2s, color 0.2s;
+          }
+          .url-link:hover {
+              background-color: #00447c;
+              color: white;
+          }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+      <h1>Mojaloop Settlement Flow Directory</h1>
+      <p>This directory lists available settlement flow reports and provides direct links for easy access. CSV links are also available for each report.</p>
+
+      <style>
+        .url-link {
+        margin-right: 4px;
+        margin-bottom: 2px;
+        display: inline-block;
+        }
+      </style>
+
+      <!-- Section 1: Bilateral Settlement External Participant Report -->
+      <h2>Bilateral Settlement External Participant Report</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>Required Params</th>
+          <th>Example URLs</th>
+          <th>CSV Links</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td>settlementId</td>
+          <td>
+          <%
+        const sortedSettlements = [...availableSettlements].sort((a, b) => b.settlementId - a.settlementId);
+        for (let i = 0; i < sortedSettlements.length; i++) {
+        const s = sortedSettlements[i];
+          %>
+        <a class="url-link" href="/api/reports/reporting-bilateral-settlements-external-participants?settlementId=<%= s.settlementId %>">
+        <%= s.settlementId %>
+        </a>
+          <% } %>
+          </td>
+          <td>
+          <%
+        for (let i = 0; i < sortedSettlements.length; i++) {
+        const s = sortedSettlements[i];
+          %>
+        <a class="url-link" href="/api/reports/reporting-bilateral-settlements-external-participants?settlementId=<%= s.settlementId %>&format=csv">
+        <%= s.settlementId %>
+        </a>
+          <% } %>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+
+      <h2>Unfinalized Settlement Window Transfers</h2>
+      <table>
+        <thead>
+          <tr>
+        <th>Required Params</th>
+        <th>Settlement Window IDs (links)</th>
+        <th>CSV Links</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%
+        const sortedWindows = [...availableSettlementWindows]
+          .sort((a, b) => b.settlementWindowId - a.settlementWindowId);
+          %>
+        <tr>
+        <td>settlementWindowId</td>
+        <td>
+          <% for (const w of sortedWindows) {
+            const windowId = w.settlementWindowId;
+          %>
+          <a class="url-link" href="/api/reports/unfinalizedSettlementWindowTransfers?settlementWindowId=<%= windowId %>">
+            <%= windowId %>
+          </a>
+          <% } %>
+        </td>
+        <td>
+          <% for (const w of sortedWindows) {
+            const windowId = w.settlementWindowId;
+          %>
+          <a class="url-link" href="/api/reports/unfinalizedSettlementWindowTransfers?settlementWindowId=<%= windowId %>&format=csv">
+            <%= windowId %>
+          </a>
+          <% } %>
+        </td>
+        </tr>
+        </tbody>
+      </table>
+
+      <!-- Section 2: Detailed Reports for All FSPs -->
+      <h2>DFSP Settlement Detail (by Participant)</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>Participant Name</th>
+          <th>Settlement IDs (links)</th>
+          <th>CSV Links</th>
+        </tr>
+        </thead>
+        <tbody>
+        <%
+          const sortedParticipantsDetail = [...getAllParticipants]
+        .sort((a, b) => a.participantName.localeCompare(b.participantName));
+          for (const p of sortedParticipantsDetail) {
+        %>
+          <tr>
+          <td><%= p.participantName %></td>
+          <td>
+        <%
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+          const included = sortedSettlements[i].includedParticipants || [];
+          if (included.includes(p.participantName)) {
+        %>
+        <a class="url-link" href="/api/reports/dfspSettlementDetail?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>">
+          <%= sid %>
+        </a>
+        <% }} %>
+          </td>
+          <td>
+        <%
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+          const included = sortedSettlements[i].includedParticipants || [];
+          if (included.includes(p.participantName)) {
+        %>
+        <a class="url-link" href="/api/reports/dfspSettlementDetail?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>&format=csv">
+          <%= sid %>
+        </a>
+        <% }} %>
+          </td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+
+      <h2>DFSP Settlement Detail External Participant</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>Participant Name</th>
+          <th>Settlement IDs (links)</th>
+          <th>CSV Links</th>
+        </tr>
+        </thead>
+        <tbody>
+        <%
+          const sortedExternalParticipantsDetail = [...getAllExternalParticipants]
+        .sort((a, b) => a.participantName.localeCompare(b.participantName));
+          for (const p of sortedExternalParticipantsDetail) {
+        %>
+          <tr>
+          <td><%= p.participantName %></td>
+          <td>
+        <%
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+        %>
+        <a class="url-link" href="/api/reports/dfspSettlementDetailExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>">
+          <%= sid %>
+        </a>
+        <% } %>
+          </td>
+          <td>
+        <%
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+        %>
+        <a class="url-link" href="/api/reports/dfspSettlementDetailExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>&format=csv">
+          <%= sid %>
+        </a>
+        <% } %>
+          </td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+
+      <!-- Section 3: DFSP Settlement -->
+      <h2>DFSP Settlement</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>Participant Name</th>
+          <th>Settlement IDs (links)</th>
+          <th>CSV Links</th>
+        </tr>
+        </thead>
+        <tbody>
+        <%
+          const sortedParticipants = [...getAllParticipants]
+          .sort((a, b) => a.participantName.localeCompare(b.participantName));
+          for (const p of sortedParticipants) {
+        %>
+          <tr>
+          <td><%= p.participantName %></td>
+          <td>
+        <%
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+          const included = sortedSettlements[i].includedParticipants || [];
+          if (included.includes(p.participantName)) {
+        %>
+        <a class="url-link" href="/api/reports/dfspSettlement?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>">
+          <%= sid %>
+        </a>
+        <% }} %>
+          </td>
+          <td>
+        <%
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+          const included = sortedSettlements[i].includedParticipants || [];
+          if (included.includes(p.participantName)) {
+        %>
+        <a class="url-link" href="/api/reports/dfspSettlement?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>&format=csv">
+          <%= sid %>
+        </a>
+        <% }} %>
+          </td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+
+      <h2>DFSP Settlement External Participant</h2>
+      <table>
+        <thead>
+        <tr>
+          <th>Participant Name</th>
+          <th>Settlement IDs (links)</th>
+          <th>CSV Links</th>
+        </tr>
+        </thead>
+        <tbody>
+        <%
+          const sortedExternalParticipants = [...getAllExternalParticipants]
+        .sort((a, b) => a.participantName.localeCompare(b.participantName));
+          for (const p of sortedExternalParticipants) {
+        %>
+          <tr>
+          <td><%= p.participantName %></td>
+          <td>
+        <%
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+        %>
+        <a class="url-link" href="/api/reports/dfspSettlementExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>">
+          <%= sid %>
+        </a>
+        <% } %>
+          </td>
+          <td>
+        <%
+        for (let i = 0; i < sortedSettlements.length; i++) {
+          const sid = sortedSettlements[i].settlementId;
+        %>
+
+        <a class="url-link" href="/api/reports/dfspSettlementExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>&format=csv">
+          <%= sid %>
+        </a>
+        <% } %>
+          </td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+      </div>
+    </body>
+    </html>
+{{- end }}
