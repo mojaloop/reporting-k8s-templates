@@ -271,12 +271,12 @@ spec:
             LEFT JOIN fxTransfer AS fxt
             ON fxtsc.commitRequestId = fxt.commitRequestId
             WHERE tsc.transferId IN (
-              SELECT transferId FROM transferFulfilment WHERE settlementWindowId = (
+              SELECT transferId FROM transferFulfilment WHERE settlementWindowId IN (
                 SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
               )
             )
               OR fxtsc.commitRequestId IN (
-              SELECT commitRequestId FROM fxTransferFulfilment WHERE settlementWindowId = (
+              SELECT commitRequestId FROM fxTransferFulfilment WHERE settlementWindowId IN (
                 SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
               )
             )
