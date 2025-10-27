@@ -3,7 +3,7 @@ apiVersion: mojaloop.io/v1
 kind: MojaloopReport
 metadata:
   name: {{ printf "%s-%s" .Release.Name "settlement-flow-directory" | trimPrefix "-" }}
-  {{ include "common.annotations" . | indent 2 }}
+  {{ include "common.annotations" . | nindent 2 }}
 spec:
   endpoint:
     path: /settlementFlowDirectory
