@@ -153,41 +153,41 @@ spec:
         </tbody>
       </table>
 
-      <h2>Unfinalized Settlement Window Transfers</h2>
+      <h2>Unfinalized Settlement Transfers</h2>
       <table>
         <thead>
           <tr>
         <th>Required Params</th>
-        <th>Settlement Window IDs (links)</th>
+        <th>Settlement IDs (links)</th>
         <th>CSV Links</th>
           </tr>
         </thead>
         <tbody>
           <%
-        const sortedWindows = [...availableSettlementWindows]
-          .sort((a, b) => b.settlementWindowId - a.settlementWindowId);
+        const sortedSettlementsUnfinalized = [...availableSettlements]
+          .sort((a, b) => b.settlementId - a.settlementId);
           %>
-        <tr>
-        <td>settlementWindowId</td>
+          <tr>
+        <td>settlementId</td>
         <td>
-          <% for (const w of sortedWindows) {
-            const windowId = w.settlementWindowId;
+          <% for (const s of sortedSettlementsUnfinalized) {
+            const settlementId = s.settlementId;
           %>
-          <a class="url-link" href="/api/reports/unfinalizedSettlementWindowTransfers?settlementWindowId=<%= windowId %>">
-            <%= windowId %>
+          <a class="url-link" href="/api/reports/unfinalizedSettlementTransfers?settlementId=<%= settlementId %>">
+            <%= settlementId %>
           </a>
           <% } %>
         </td>
         <td>
-          <% for (const w of sortedWindows) {
-            const windowId = w.settlementWindowId;
+          <% for (const s of sortedSettlementsUnfinalized) {
+            const settlementId = s.settlementId;
           %>
-          <a class="url-link" href="/api/reports/unfinalizedSettlementWindowTransfers?settlementWindowId=<%= windowId %>&format=csv">
-            <%= windowId %>
+          <a class="url-link" href="/api/reports/unfinalizedSettlementTransfers?settlementId=<%= settlementId %>&format=csv">
+            <%= settlementId %>
           </a>
           <% } %>
         </td>
-        </tr>
+          </tr>
         </tbody>
       </table>
 
