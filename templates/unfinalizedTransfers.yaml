@@ -99,9 +99,9 @@ spec:
         LEFT JOIN transferStateChange related_tsc
           ON related_tsc.transferId = t.transferId
           AND related_tsc.transferStateChangeId = (
-        SELECT MAX(tsc2.transferStateChangeId)
-        FROM transferStateChange tsc2
-        WHERE tsc2.transferId = t.transferId
+            SELECT MAX(tsc2.transferStateChangeId)
+            FROM transferStateChange tsc2
+            WHERE tsc2.transferId = t.transferId
           )
         WHERE ftp.transferParticipantRoleTypeId IN ('6', 'INITIATING', '7', 'COUNTER_PARTY')
         AND ftsc.transferStateId NOT IN (
@@ -409,12 +409,12 @@ spec:
             for (const t of group) {
               const roleId = String(t.transferParticipantRoleTypeId).toUpperCase();
               if (roleId === '1' || roleId === 'PAYER_DFSP') {
-          payerName = t.participantName || '';
-          payerExternal = t.externalParticipantName || '';
+                payerName = t.participantName || '';
+                payerExternal = t.externalParticipantName || '';
               }
               if (roleId === '2' || roleId === 'PAYEE_DFSP') {
-          payeeName = t.participantName || '';
-          payeeExternal = t.externalParticipantName || '';
+                payeeName = t.participantName || '';
+                payeeExternal = t.externalParticipantName || '';
               }
             }
             payerFsp = displayName(payerName, payerExternal);
@@ -423,13 +423,13 @@ spec:
             const t = group[0];
               %>
               <tr class="main-row">
-          <td><%= payerFsp %></td>
-          <td><%= payeeFsp %></td>
-          <td><%= t.transferId %></td>
-          <td><%= t.transferStateId %></td>
-          <td><%= formatAmount(Math.abs(t.amount), currencyMap[t.currencyId]?.scale || 2) %></td>
-          <td><%= currencyMap[t.currencyId]?.currencyId || t.currencyId %></td>
-          <td><%= t.createdDate ? new Date(t.createdDate).toLocaleString() : '' %></td>
+                <td><%= payerFsp %></td>
+                <td><%= payeeFsp %></td>
+                <td><%= t.transferId %></td>
+                <td><%= t.transferStateId %></td>
+                <td><%= formatAmount(Math.abs(t.amount), currencyMap[t.currencyId]?.scale || 2) %></td>
+                <td><%= currencyMap[t.currencyId]?.currencyId || t.currencyId %></td>
+                <td><%= t.createdDate ? new Date(t.createdDate).toLocaleString() : '' %></td>
               </tr>
               <%
             // If FX info exists, show additional sub row with same headers
@@ -463,15 +463,15 @@ spec:
           </td>
               </tr>
               <%
-            } else {
-              // No related FX transfer info
+              } else {
+                // No related FX transfer info
+                %>
+                <tr class="main-row smallFont offwhite">
+                  <td colspan="7" style="text-align:center;">No related FX transfer information for this transfer.</td>
+                </tr>
+                <%
+              }
               %>
-              <tr class="main-row smallFont offwhite">
-          <td colspan="7" style="text-align:center;">No related FX transfer information for this transfer.</td>
-              </tr>
-              <%
-            }
-            %>
               <% } %>
             <% } %>
           </tbody>
@@ -526,12 +526,12 @@ spec:
             for (const fx of group) {
               const roleId = String(fx.transferParticipantRoleTypeId).toUpperCase();
               if (roleId === '6' || roleId === 'INITIATING') {
-          initiatingName = fx.participantName || '';
-          initiatingExternal = fx.externalParticipantName || '';
+                initiatingName = fx.participantName || '';
+                initiatingExternal = fx.externalParticipantName || '';
               }
               if (roleId === '7' || roleId === 'COUNTER_PARTY') {
-          counterPartyName = fx.participantName || '';
-          counterPartyExternal = fx.externalParticipantName || '';
+                counterPartyName = fx.participantName || '';
+                counterPartyExternal = fx.externalParticipantName || '';
               }
             }
             const initiatingFsp = displayName(initiatingName, initiatingExternal);
