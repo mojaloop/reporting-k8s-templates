@@ -69,6 +69,13 @@ spec:
           'FAILED',
           'INVALID'
         )
+        AND (
+          tsc.transferId IN (
+            SELECT transferId FROM transferFulfilment WHERE settlementWindowId IN (
+              SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+            )
+          )
+        )
         ORDER BY tsc.transferStateId, t.transferId;
     - name: unfinalizedFxTransfers
       query: >
@@ -127,6 +134,14 @@ spec:
           'EXPIRED_PREPARED',
           'FAILED',
           'INVALID'
+        )
+        AND
+        (
+          ft.commitRequestId IN (
+            SELECT commitRequestId FROM fxTransferFulfilment WHERE settlementWindowId IN (
+              SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+            )
+          )
         )
         ORDER BY ftsc.transferStateId, ft.commitRequestId;
     - name: getAllCurrency
