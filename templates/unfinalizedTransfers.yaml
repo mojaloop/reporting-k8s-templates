@@ -330,7 +330,15 @@ spec:
         </div>
 
         <div class="summary">
-          <p>Total Transactions: <%= unfinalizedTransfers.length + unfinalizedFxTransfers.length %></p>
+          <%
+            // Count unique transferIds in unfinalizedTransfers
+            const uniqueTransferIds = new Set(unfinalizedTransfers.map(t => t.transferId));
+            // Count unique commitRequestIds in unfinalizedFxTransfers
+            const uniqueCommitRequestIds = new Set(unfinalizedFxTransfers.map(fx => fx.commitRequestId));
+          %>
+          <p>Total Unique Transfers: <%= uniqueTransferIds.size %></p>
+          <p>Total Unique FX Transfers: <%= uniqueCommitRequestIds.size %></p>
+          <p>Total Transactions: <%= uniqueTransferIds.size + uniqueCommitRequestIds.size %></p>
             <%
             // startDate and endDate are ISO strings, e.g., 2025-08-20T07:16:09 00:00
             let startDateRaw = (getAllCurrency[0]?.startDate || '').trim();

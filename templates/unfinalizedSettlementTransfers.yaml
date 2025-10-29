@@ -436,7 +436,14 @@ spec:
         <p>State: <%= settlementState %></p>
         <p>First Opened: <%= earliestOpen ? new Date(earliestOpen).toLocaleString() : '' %></p>
         <p>Last Closed: <%= latestClose ? new Date(latestClose).toLocaleString() : '' %></p>
-        <p>Total Unfinalized Transfers: <%= unfinalizedTransfers.length + unfinalizedFxTransfers.length %></p>
+        <%
+          // Count unique transferIds and commitRequestIds
+          const uniqueTransferIds = new Set(unfinalizedTransfers.map(t => t.transferId));
+          const uniqueFxTransferIds = new Set(unfinalizedFxTransfers.map(fx => fx.commitRequestId));
+        %>
+        <p>Total Unfinalized Transfers: <%= uniqueTransferIds.size %></p>
+        <p>Total Unfinalized FX Transfers: <%= uniqueFxTransferIds.size %></p>
+        <p>Total Unfinalized (Transfers + FX Transfers): <%= uniqueTransferIds.size + uniqueFxTransferIds.size %></p>
         <% if (windowIds.length > 0 && Array.isArray(swDetails.windowDetails)) { %>
           <div class="marginBottom10px">
             <strong>Settlement Windows in Settlement:</strong>
