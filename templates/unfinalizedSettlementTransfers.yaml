@@ -163,7 +163,14 @@ spec:
         SELECT
           GROUP_CONCAT(ssw.settlementWindowId) AS settlementWindowIds,
           MIN(opened.createdDate) AS earliestWindowOpened,
-          MAX(closed.createdDate) AS lastWindowClosed
+          MAX(closed.createdDate) AS lastWindowClosed,
+          JSON_ARRAYAGG(
+        JSON_OBJECT(
+          'settlementWindowId', ssw.settlementWindowId,
+          'opened', opened.createdDate,
+          'closed', closed.createdDate
+        )
+          ) AS windowDetails
         FROM settlementSettlementWindow ssw
         INNER JOIN settlementWindow sw ON sw.settlementWindowId = ssw.settlementWindowId
         LEFT JOIN (
@@ -171,10 +178,10 @@ spec:
           FROM settlementWindowStateChange swsc
           WHERE swsc.settlementWindowStateId = 'OPEN'
           AND swsc.settlementWindowStateChangeId = (
-          SELECT MIN(swsc2.settlementWindowStateChangeId)
-          FROM settlementWindowStateChange swsc2
-          WHERE swsc2.settlementWindowId = swsc.settlementWindowId
-            AND swsc2.settlementWindowStateId = 'OPEN'
+        SELECT MIN(swsc2.settlementWindowStateChangeId)
+        FROM settlementWindowStateChange swsc2
+        WHERE swsc2.settlementWindowId = swsc.settlementWindowId
+          AND swsc2.settlementWindowStateId = 'OPEN'
           )
         ) opened ON opened.settlementWindowId = ssw.settlementWindowId
         LEFT JOIN (
@@ -182,10 +189,10 @@ spec:
           FROM settlementWindowStateChange swsc
           WHERE swsc.settlementWindowStateId = 'CLOSED'
           AND swsc.settlementWindowStateChangeId = (
-          SELECT MAX(swsc2.settlementWindowStateChangeId)
-          FROM settlementWindowStateChange swsc2
-          WHERE swsc2.settlementWindowId = swsc.settlementWindowId
-            AND swsc2.settlementWindowStateId = 'CLOSED'
+        SELECT MAX(swsc2.settlementWindowStateChangeId)
+        FROM settlementWindowStateChange swsc2
+        WHERE swsc2.settlementWindowId = swsc.settlementWindowId
+          AND swsc2.settlementWindowStateId = 'CLOSED'
           )
         ) closed ON closed.settlementWindowId = ssw.settlementWindowId
         WHERE ssw.settlementId = :settlementId;
@@ -412,17 +419,34 @@ spec:
       <div class="summary">
         <p>Settlement ID: <%= settlementDetails.settlementId || '' %></p>
         <p>State: <%= settlementState %></p>
-        <p>Opened: <%= earliestOpen ? new Date(earliestOpen).toLocaleString() : '' %></p>
-        <p>Closed: <%= latestClose ? new Date(latestClose).toLocaleString() : '' %></p>
+        <p>First Opened: <%= earliestOpen ? new Date(earliestOpen).toLocaleString() : '' %></p>
+        <p>Last Closed: <%= latestClose ? new Date(latestClose).toLocaleString() : '' %></p>
         <p>Total Unfinalized Transfers: <%= unfinalizedTransfers.length + unfinalizedFxTransfers.length %></p>
-        <% if (windowIds.length > 0) { %>
+        <% if (windowIds.length > 0 && Array.isArray(swDetails.windowDetails)) { %>
           <div class="marginBottom10px">
-        <strong>Settlement Window IDs in Settlement:</strong>
-        <span><%= windowIds.join(', ') %></span>
+            <strong>Settlement Windows in Settlement:</strong>
+            <table style="margin-top: 5px; width: auto; border-collapse: collapse;">
+              <thead>
+          <tr>
+            <th style="background-color:#00447c; color:#fff; padding:6px;">Window ID</th>
+            <th style="background-color:#00447c; color:#fff; padding:6px;">Opened</th>
+            <th style="background-color:#00447c; color:#fff; padding:6px;">Closed</th>
+          </tr>
+              </thead>
+              <tbody>
+          <% for (const win of swDetails.windowDetails) { %>
+            <tr>
+              <td style="padding:6px; border:1px solid #ddd;"><%= win.settlementWindowId %></td>
+              <td style="padding:6px; border:1px solid #ddd;"><%= win.opened ? new Date(win.opened).toLocaleString() : 'N/A' %></td>
+              <td style="padding:6px; border:1px solid #ddd;"><%= win.closed ? new Date(win.closed).toLocaleString() : 'N/A' %></td>
+            </tr>
+          <% } %>
+              </tbody>
+            </table>
           </div>
         <% } else { %>
           <div class="marginBottom10px">
-        <strong>No settlement windows found for this settlement.</strong>
+            <strong>No settlement windows found for this settlement.</strong>
           </div>
         <% } %>
       </div>
