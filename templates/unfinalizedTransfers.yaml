@@ -82,7 +82,8 @@ spec:
           t.transferId AS relatedTransferId,
           t.amount AS relatedTransferAmount,
           t.currencyId AS relatedTransferCurrency,
-          t.createdDate AS relatedTransferCreatedDate
+          t.createdDate AS relatedTransferCreatedDate,
+          related_tsc.transferStateId AS relatedTransferStateId
         FROM fxTransfer ft
         INNER JOIN (
           SELECT commitRequestId, MAX(fxTransferStateChangeId) AS maxChangeId
@@ -95,6 +96,13 @@ spec:
         LEFT JOIN externalParticipant ep ON ep.externalParticipantId = ftp.externalParticipantId
         JOIN fxTransferStateChange ftsc ON ftsc.fxTransferStateChangeId = latest.maxChangeId
         LEFT JOIN transfer t ON t.transferId = ft.determiningTransferId
+        LEFT JOIN transferStateChange related_tsc
+          ON related_tsc.transferId = t.transferId
+          AND related_tsc.transferStateChangeId = (
+            SELECT MAX(tsc2.transferStateChangeId)
+            FROM transferStateChange tsc2
+            WHERE tsc2.transferId = t.transferId
+          )
         WHERE ftp.transferParticipantRoleTypeId IN ('6', 'INITIATING', '7', 'COUNTER_PARTY')
         AND ftsc.transferStateId NOT IN (
           'COMMITTED',
@@ -322,7 +330,15 @@ spec:
         </div>
 
         <div class="summary">
-          <p>Total Transactions: <%= unfinalizedTransfers.length + unfinalizedFxTransfers.length %></p>
+          <%
+            // Count unique transferIds in unfinalizedTransfers
+            const uniqueTransferIds = new Set(unfinalizedTransfers.map(t => t.transferId));
+            // Count unique commitRequestIds in unfinalizedFxTransfers
+            const uniqueCommitRequestIds = new Set(unfinalizedFxTransfers.map(fx => fx.commitRequestId));
+          %>
+          <p>Total Unique Transfers: <%= uniqueTransferIds.size %></p>
+          <p>Total Unique FX Transfers: <%= uniqueCommitRequestIds.size %></p>
+          <p>Total Transactions: <%= uniqueTransferIds.size + uniqueCommitRequestIds.size %></p>
             <%
             // startDate and endDate are ISO strings, e.g., 2025-08-20T07:16:09 00:00
             let startDateRaw = (getAllCurrency[0]?.startDate || '').trim();
@@ -415,20 +431,28 @@ spec:
             const t = group[0];
               %>
               <tr class="main-row">
-          <td><%= payerFsp %></td>
-          <td><%= payeeFsp %></td>
-          <td><%= t.transferId %></td>
-          <td><%= t.transferStateId %></td>
-          <td><%= formatAmount(Math.abs(t.amount), currencyMap[t.currencyId]?.scale || 2) %></td>
-          <td><%= currencyMap[t.currencyId]?.currencyId || t.currencyId %></td>
-          <td><%= t.createdDate ? new Date(t.createdDate).toLocaleString() : '' %></td>
+                <td><%= payerFsp %></td>
+                <td><%= payeeFsp %></td>
+                <td><%= t.transferId %></td>
+                <td><%= t.transferStateId %></td>
+                <td><%= formatAmount(Math.abs(t.amount), currencyMap[t.currencyId]?.scale || 2) %></td>
+                <td><%= currencyMap[t.currencyId]?.currencyId || t.currencyId %></td>
+                <td><%= t.createdDate ? new Date(t.createdDate).toLocaleString() : '' %></td>
               </tr>
               <%
             // If FX info exists, show additional sub row with same headers
-            if (t.fxCommitRequestId || t.fxTransferStateId || t.fxSourceAmount || t.fxSourceCurrency || t.fxTargetAmount || t.fxTargetCurrency || t.fxCreatedDate) {
+            if (
+              t.fxCommitRequestId ||
+              t.fxTransferStateId ||
+              t.fxSourceAmount ||
+              t.fxSourceCurrency ||
+              t.fxTargetAmount ||
+              t.fxTargetCurrency ||
+              t.fxCreatedDate
+            ) {
               %>
               <tr class="main-row smallFont offwhite">
-          <td colspan="1"></td>
+          <td>⤷</td>
           <td colspan="1"></td>
           <td>
             <%= t.fxCommitRequestId ? 'commitRequestId: ' + t.fxCommitRequestId : '' %>
@@ -446,7 +470,16 @@ spec:
             FX Created: <%= t.fxCreatedDate ? new Date(t.fxCreatedDate).toLocaleString() : '' %>
           </td>
               </tr>
-              <%   } %>
+              <%
+              } else {
+                // No related FX transfer info
+                %>
+                <tr class="main-row smallFont offwhite">
+                  <td colspan="7" style="text-align:center;">No related FX transfer information for this transfer.</td>
+                </tr>
+                <%
+              }
+              %>
               <% } %>
             <% } %>
           </tbody>
@@ -514,7 +547,7 @@ spec:
             // Use first row for other fields
             const fx = group[0];
               %>
-              <tr>
+              <tr class="main-row">
           <td><%= initiatingFsp %></td>
           <td><%= counterPartyFsp %></td>
           <td><%= fx.commitRequestId %></td>
@@ -528,26 +561,43 @@ spec:
               </tr>
               <%
             // Add sub row for related transfer info if exists
-            if (fx.relatedTransferId || fx.relatedTransferAmount || fx.relatedTransferCurrency || fx.relatedTransferCreatedDate) {
+            if (
+              fx.relatedTransferId ||
+              fx.relatedTransferAmount ||
+              fx.relatedTransferCurrency ||
+              fx.relatedTransferCreatedDate
+            ) {
               %>
               <tr class="main-row smallFont offwhite">
-          <td colspan="2"></td>
-          <td colspan="2">
+            <td>⤷</td>
+            <td colspan="1"></td>
+            <td colspan="2">
             <%= fx.relatedTransferId ? 'Related Transfer ID: ' + fx.relatedTransferId : '' %>
-          </td>
-          <td></td>
-          <td>
+            </td>
+            <td>
+            <%= fx.relatedTransferStateId ? fx.relatedTransferStateId : '' %>
+            </td>
+            <td>
             <%= fx.relatedTransferAmount ? formatAmount(Math.abs(fx.relatedTransferAmount), currencyMap[fx.relatedTransferCurrency]?.scale || 2) : '' %>
-          </td>
-          <td>
+            </td>
+            <td>
             <%= fx.relatedTransferCurrency ? currencyMap[fx.relatedTransferCurrency]?.currencyId || fx.relatedTransferCurrency : '' %>
-          </td>
-          <td colspan="2"></td>
-          <td>
+            </td>
+            <td colspan="2"></td>
+            <td>
             <%= fx.relatedTransferCreatedDate ? 'Related Created: ' + new Date(fx.relatedTransferCreatedDate).toLocaleString() : '' %>
-          </td>
+            </td>
               </tr>
-              <%   } %>
+              <%
+            } else {
+              // No related transfer info
+              %>
+              <tr class="main-row smallFont offwhite">
+            <td colspan="10" style="text-align:center;">No related transfer information for this FX transfer.</td>
+              </tr>
+              <%
+            }
+            %>
               <% } %>
             <% } %>
           </tbody>
