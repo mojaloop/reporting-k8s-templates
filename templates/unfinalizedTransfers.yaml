@@ -319,50 +319,64 @@ spec:
         currencyMap[c.currencyId] = c;
       }
     %>
+    <%
+      // Count unique transferIds in unfinalizedTransfers
+      const uniqueTransferIds = new Set(unfinalizedTransfers.map(t => t.transferId));
+      // Count unique commitRequestIds in unfinalizedFxTransfers
+      const uniqueCommitRequestIds = new Set(unfinalizedFxTransfers.map(fx => fx.commitRequestId));
 
-    <body>
+      // startDate and endDate are ISO strings, e.g., 2025-08-20T07:16:09 00:00
+      let startDateRaw = (getAllCurrency[0]?.startDate || '').trim();
+      let endDateRaw = (getAllCurrency[0]?.endDate || '').trim();
+
+      // Remove any trailing timezone if present (e.g., " 00:00" or " +00:00")
+      let startDateClean = startDateRaw.replace(/\s[+\-]?\d{2}:?\d{2}$/, '');
+      let endDateClean = endDateRaw.replace(/\s[+\-]?\d{2}:?\d{2}$/, '');
+
+      // Replace first space with 'T' to make it ISO if needed
+      let startDateIso = startDateClean.replace(' ', 'T');
+      let endDateIso = endDateClean.replace(' ', 'T');
+
+      // Parse and check for valid date
+      function safeLocaleString(dateStr) {
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? '' : d.toLocaleString();
+      }
+
+      let startDateStr = startDateIso ? safeLocaleString(startDateIso) : '';
+      let endDateStr = endDateIso ? safeLocaleString(endDateIso) : '';
+
+      const dataForJson = {
+        totalUniqueTransfers: uniqueTransferIds.size,
+        totalUniqueFxTransfers: uniqueCommitRequestIds.size,
+        totalTransactions: uniqueTransferIds.size + uniqueCommitRequestIds.size,
+        startDateRaw,
+        endDateRaw,
+        startDateIso,
+        endDateIso,
+        startDateStr,
+        endDateStr,
+        unfinalizedTransfers,
+        unfinalizedFxTransfers,
+        getAllCurrency,
+        currencyMap
+      };
+    %>
+    <body data-json="<%= JSON.stringify(dataForJson) %>">
       <div class="container">
         <div class="header">
-            <h1>DRPP Transaction Report</h1>
-            {{- if .Values.templates.topBarLogoUrl -}}
-            <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
-            {{- end }}
+          <h1>DRPP Transaction Report</h1>
+          {{- if .Values.templates.topBarLogoUrl -}}
+          <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
+          {{- end }}
         </div>
 
         <div class="summary">
-          <%
-            // Count unique transferIds in unfinalizedTransfers
-            const uniqueTransferIds = new Set(unfinalizedTransfers.map(t => t.transferId));
-            // Count unique commitRequestIds in unfinalizedFxTransfers
-            const uniqueCommitRequestIds = new Set(unfinalizedFxTransfers.map(fx => fx.commitRequestId));
-          %>
           <p>Total Unique Transfers: <%= uniqueTransferIds.size %></p>
           <p>Total Unique FX Transfers: <%= uniqueCommitRequestIds.size %></p>
           <p>Total Transactions: <%= uniqueTransferIds.size + uniqueCommitRequestIds.size %></p>
-            <%
-            // startDate and endDate are ISO strings, e.g., 2025-08-20T07:16:09 00:00
-            let startDateRaw = (getAllCurrency[0]?.startDate || '').trim();
-            let endDateRaw = (getAllCurrency[0]?.endDate || '').trim();
-
-            // Remove any trailing timezone if present (e.g., " 00:00" or " +00:00")
-            let startDateClean = startDateRaw.replace(/\s[+\-]?\d{2}:?\d{2}$/, '');
-            let endDateClean = endDateRaw.replace(/\s[+\-]?\d{2}:?\d{2}$/, '');
-
-            // Replace first space with 'T' to make it ISO if needed
-            let startDateIso = startDateClean.replace(' ', 'T');
-            let endDateIso = endDateClean.replace(' ', 'T');
-
-            // Parse and check for valid date
-            function safeLocaleString(dateStr) {
-              const d = new Date(dateStr);
-              return isNaN(d.getTime()) ? '' : d.toLocaleString();
-            }
-
-            let startDateStr = startDateIso ? safeLocaleString(startDateIso) : '';
-            let endDateStr = endDateIso ? safeLocaleString(endDateIso) : '';
-            %>
-            <p>Start Date: <%= startDateStr %></p>
-            <p>End Date: <%= endDateStr %></p>
+          <p>Start Date: <%= startDateStr %></p>
+          <p>End Date: <%= endDateStr %></p>
         </div>
 
         <h2>Unfinalized Transfers</h2>
@@ -382,33 +396,33 @@ spec:
             <%
               // Group by transferId and extract payer/payee
               const transferGroups = {};
-              for (const t of unfinalizedTransfers) {
-          if (!transferGroups[t.transferId]) transferGroups[t.transferId] = [];
-          transferGroups[t.transferId].push(t);
+              for (const t of dataForJson.unfinalizedTransfers) {
+                if (!transferGroups[t.transferId]) transferGroups[t.transferId] = [];
+                transferGroups[t.transferId].push(t);
               }
               function displayName(participantName, externalParticipantName) {
-          return externalParticipantName
-            ? `${participantName} (${externalParticipantName})`
-            : participantName;
+                return externalParticipantName
+                  ? `${participantName} (${externalParticipantName})`
+                  : participantName;
               }
 
               // Group transferGroups by currency
               const currencyTransferMap = {};
               for (const transferId in transferGroups) {
-          const group = transferGroups[transferId];
-          const t = group[0];
-          const currency = t.currencyId || 'N/A';
-          if (!currencyTransferMap[currency]) currencyTransferMap[currency] = [];
-          currencyTransferMap[currency].push(group);
+                const group = transferGroups[transferId];
+                const t = group[0];
+                const currency = t.currencyId || 'N/A';
+                if (!currencyTransferMap[currency]) currencyTransferMap[currency] = [];
+                currencyTransferMap[currency].push(group);
               }
 
               for (const currency in currencyTransferMap) {
             %>
               <!-- Spacer row with currency name -->
               <tr>
-          <td colspan="7" class="currency-header-row">
-            <%= currencyMap[currency]?.currencyId || currency %>
-          </td>
+                <td colspan="7" class="currency-header-row">
+                  <%= dataForJson.currencyMap[currency]?.currencyId || currency %>
+                </td>
               </tr>
               <%
           for (const group of currencyTransferMap[currency]) {
@@ -435,8 +449,8 @@ spec:
                 <td><%= payeeFsp %></td>
                 <td><%= t.transferId %></td>
                 <td><%= t.transferStateId %></td>
-                <td><%= formatAmount(Math.abs(t.amount), currencyMap[t.currencyId]?.scale || 2) %></td>
-                <td><%= currencyMap[t.currencyId]?.currencyId || t.currencyId %></td>
+                <td><%= formatAmount(Math.abs(t.amount), dataForJson.currencyMap[t.currencyId]?.scale || 2) %></td>
+                <td><%= dataForJson.currencyMap[t.currencyId]?.currencyId || t.currencyId %></td>
                 <td><%= t.createdDate ? new Date(t.createdDate).toLocaleString() : '' %></td>
               </tr>
               <%
@@ -459,28 +473,28 @@ spec:
           </td>
           <td><%= t.fxTransferStateId ? t.fxTransferStateId : '' %></td>
           <td>
-            <%= t.fxSourceAmount ? formatAmount(Math.abs(t.fxSourceAmount), currencyMap[t.fxSourceCurrency]?.scale || 2) : '' %>
-            <%= t.fxTargetAmount ? ' → ' + formatAmount(Math.abs(t.fxTargetAmount), currencyMap[t.fxTargetCurrency]?.scale || 2) : '' %>
+            <%= t.fxSourceAmount ? formatAmount(Math.abs(t.fxSourceAmount), dataForJson.currencyMap[t.fxSourceCurrency]?.scale || 2) : '' %>
+            <%= t.fxTargetAmount ? ' → ' + formatAmount(Math.abs(t.fxTargetAmount), dataForJson.currencyMap[t.fxTargetCurrency]?.scale || 2) : '' %>
           </td>
           <td>
-            <%= t.fxSourceCurrency ? currencyMap[t.fxSourceCurrency]?.currencyId || t.fxSourceCurrency : '' %>
-            <%= t.fxTargetCurrency ? ' → ' + (currencyMap[t.fxTargetCurrency]?.currencyId || t.fxTargetCurrency) : '' %>
+            <%= t.fxSourceCurrency ? dataForJson.currencyMap[t.fxSourceCurrency]?.currencyId || t.fxSourceCurrency : '' %>
+            <%= t.fxTargetCurrency ? ' → ' + (dataForJson.currencyMap[t.fxTargetCurrency]?.currencyId || t.fxTargetCurrency) : '' %>
           </td>
           <td>
             FX Created: <%= t.fxCreatedDate ? new Date(t.fxCreatedDate).toLocaleString() : '' %>
           </td>
               </tr>
               <%
-              } else {
-                // No related FX transfer info
-                %>
-                <tr class="main-row smallFont offwhite">
-                  <td colspan="7" style="text-align:center;">No related FX transfer information for this transfer.</td>
-                </tr>
-                <%
-              }
+            } else {
+              // No related FX transfer info
               %>
-              <% } %>
+          <tr class="main-row smallFont offwhite">
+            <td colspan="7" style="text-align:center;">No related FX transfer information for this transfer.</td>
+          </tr>
+              <%
+            }
+          }
+              %>
             <% } %>
           </tbody>
         </table>
@@ -503,11 +517,10 @@ spec:
           </thead>
           <tbody>
             <%
-              // Group by commitRequestId and extract initiating/counterparty
               const fxGroups = {};
-              for (const fx of unfinalizedFxTransfers) {
-          if (!fxGroups[fx.commitRequestId]) fxGroups[fx.commitRequestId] = [];
-          fxGroups[fx.commitRequestId].push(fx);
+              for (const fx of dataForJson.unfinalizedFxTransfers) {
+                if (!fxGroups[fx.commitRequestId]) fxGroups[fx.commitRequestId] = [];
+                fxGroups[fx.commitRequestId].push(fx);
               }
 
               // Group fxGroups by sourceCurrency
@@ -524,9 +537,9 @@ spec:
             %>
               <!-- Spacer row with currency name -->
               <tr>
-          <td colspan="10" class="currency-header-row">
-            <%= currencyMap[currency]?.currencyId || currency %>
-          </td>
+                <td colspan="10" class="currency-header-row">
+                  <%= dataForJson.currencyMap[currency]?.currencyId || currency %>
+                </td>
               </tr>
               <%
           for (const group of fxCurrencyMap[currency]) {
@@ -548,16 +561,16 @@ spec:
             const fx = group[0];
               %>
               <tr class="main-row">
-          <td><%= initiatingFsp %></td>
-          <td><%= counterPartyFsp %></td>
-          <td><%= fx.commitRequestId %></td>
-          <td><%= fx.determiningTransferId %></td>
-          <td><%= fx.transferStateId %></td>
-          <td><%= formatAmount(Math.abs(fx.sourceAmount), currencyMap[fx.sourceCurrency]?.scale || 2) %></td>
-          <td><%= currencyMap[fx.sourceCurrency]?.currencyId || fx.sourceCurrency %></td>
-          <td><%= formatAmount(Math.abs(fx.targetAmount), currencyMap[fx.targetCurrency]?.scale || 2) %></td>
-          <td><%= currencyMap[fx.targetCurrency]?.currencyId || fx.targetCurrency %></td>
-          <td><%= fx.createdDate ? new Date(fx.createdDate).toLocaleString() : '' %></td>
+              <td><%= initiatingFsp %></td>
+              <td><%= counterPartyFsp %></td>
+              <td><%= fx.commitRequestId %></td>
+              <td><%= fx.determiningTransferId %></td>
+              <td><%= fx.transferStateId %></td>
+              <td><%= formatAmount(Math.abs(fx.sourceAmount), dataForJson.currencyMap[fx.sourceCurrency]?.scale || 2) %></td>
+              <td><%= dataForJson.currencyMap[fx.sourceCurrency]?.currencyId || fx.sourceCurrency %></td>
+              <td><%= formatAmount(Math.abs(fx.targetAmount), dataForJson.currencyMap[fx.targetCurrency]?.scale || 2) %></td>
+              <td><%= dataForJson.currencyMap[fx.targetCurrency]?.currencyId || fx.targetCurrency %></td>
+              <td><%= fx.createdDate ? new Date(fx.createdDate).toLocaleString() : '' %></td>
               </tr>
               <%
             // Add sub row for related transfer info if exists
@@ -569,39 +582,40 @@ spec:
             ) {
               %>
               <tr class="main-row smallFont offwhite">
-            <td>⤷</td>
-            <td colspan="1"></td>
-            <td colspan="2">
-            <%= fx.relatedTransferId ? 'Related Transfer ID: ' + fx.relatedTransferId : '' %>
-            </td>
-            <td>
-            <%= fx.relatedTransferStateId ? fx.relatedTransferStateId : '' %>
-            </td>
-            <td>
-            <%= fx.relatedTransferAmount ? formatAmount(Math.abs(fx.relatedTransferAmount), currencyMap[fx.relatedTransferCurrency]?.scale || 2) : '' %>
-            </td>
-            <td>
-            <%= fx.relatedTransferCurrency ? currencyMap[fx.relatedTransferCurrency]?.currencyId || fx.relatedTransferCurrency : '' %>
-            </td>
-            <td colspan="2"></td>
-            <td>
-            <%= fx.relatedTransferCreatedDate ? 'Related Created: ' + new Date(fx.relatedTransferCreatedDate).toLocaleString() : '' %>
-            </td>
+                <td>⤷</td>
+                <td colspan="1"></td>
+                <td colspan="2">
+                  <%= fx.relatedTransferId ? 'Related Transfer ID: ' + fx.relatedTransferId : '' %>
+                </td>
+                <td>
+                  <%= fx.relatedTransferStateId ? fx.relatedTransferStateId : '' %>
+                </td>
+                <td>
+                  <%= fx.relatedTransferAmount ? formatAmount(Math.abs(fx.relatedTransferAmount), dataForJson.currencyMap[fx.relatedTransferCurrency]?.scale || 2) : '' %>
+                </td>
+                <td>
+                  <%= fx.relatedTransferCurrency ? dataForJson.currencyMap[fx.relatedTransferCurrency]?.currencyId || fx.relatedTransferCurrency : '' %>
+                </td>
+                <td colspan="2"></td>
+                <td>
+                  <%= fx.relatedTransferCreatedDate ? 'Related Created: ' + new Date(fx.relatedTransferCreatedDate).toLocaleString() : '' %>
+                </td>
               </tr>
               <%
             } else {
               // No related transfer info
               %>
               <tr class="main-row smallFont offwhite">
-            <td colspan="10" style="text-align:center;">No related transfer information for this FX transfer.</td>
+                <td colspan="10" style="text-align:center;">No related transfer information for this FX transfer.</td>
               </tr>
               <%
             }
+          }
+              }
             %>
-              <% } %>
-            <% } %>
           </tbody>
         </table>
+
         <div class="footer">
           <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>
         </div>
