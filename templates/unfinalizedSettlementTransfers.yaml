@@ -499,9 +499,9 @@ spec:
 
       <% if (reportUrl) { %>
         <p>
-          <a class="highlight-link" href="<%= reportUrl %>" target="_blank">
-            View Unfinalized Transfers Report (Finance Portal)
-          </a>
+            <a class="highlight-link" href="<%= reportUrl %>" target="_blank" rel="noopener">
+              View Unfinalized Transfers Report (Finance Portal)
+            </a>
         </p>
       <% } %>
 
