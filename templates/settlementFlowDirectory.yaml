@@ -50,7 +50,17 @@ spec:
     <html lang="en">
     <head>
       <meta charset="UTF-8">
+<<<<<<< Updated upstream
       <title>Mojaloop Settlement Flow Directory</title>
+=======
+      <title>
+        {{- if .Values.templates.titles.settlementFlowDirectory -}}
+          {{ .Values.templates.titles.settlementFlowDirectory }}
+        {{- else -}}
+          Mojaloop Settlement Flow Reports Directory
+        {{- end -}}
+      </title>
+>>>>>>> Stashed changes
       <style>
           body {
               font-family: 'Arial', sans-serif;
@@ -104,7 +114,17 @@ spec:
     </head>
     <body>
       <div class="container">
+<<<<<<< Updated upstream
       <h1>Mojaloop Settlement Flow Directory</h1>
+=======
+      <h1>
+        {{- if .Values.templates.titles.settlementFlowDirectory -}}
+          {{ .Values.templates.titles.settlementFlowDirectory }}
+        {{- else -}}
+          Mojaloop Settlement Flow Reports Directory
+        {{- end -}}
+      </h1>
+>>>>>>> Stashed changes
       <p>This directory lists available settlement flow reports and provides direct links for easy access. CSV links are also available for each report.</p>
 
       <style>

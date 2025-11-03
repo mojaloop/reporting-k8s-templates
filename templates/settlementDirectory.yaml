@@ -38,7 +38,13 @@ spec:
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Mojaloop Report Directory</title>
+      <title>
+        {{- if .Values.templates.titles.settlementDirectory -}}
+          {{ .Values.templates.titles.settlementDirectory }}
+        {{- else -}}
+          Mojaloop Report Directory
+        {{- end -}}
+      </title>
       <style>
           body {
               font-family: 'Arial', sans-serif;
@@ -190,7 +196,13 @@ spec:
     </head>
     <body>
       <div class="container">
-      <h1>Mojaloop Report Directory</h1>
+      <h1>
+        {{- if .Values.templates.titles.settlementDirectory -}}
+          {{ .Values.templates.titles.settlementDirectory }}
+        {{- else -}}
+          Mojaloop Report Directory
+        {{- end -}}
+      </h1>
       <p>This directory lists available settlement reports and provides direct links for easy access.</p>
 
       <!-- Bilateral Settlement Table -->

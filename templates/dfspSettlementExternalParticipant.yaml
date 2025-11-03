@@ -291,8 +291,14 @@ spec:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>External Bilateral Settlement Report for
+        <title>
+          {{- if .Values.templates.titles.dfspSettlementExternalParticipant -}}
+            {{ .Values.templates.titles.dfspSettlementExternalParticipant }}
+            <%= selectedExternalParticipant && selectedExternalParticipant[0] ? ' for ' + selectedExternalParticipant[0].externalParticipantName : '' %>
+          {{- else -}}
+            External Bilateral Settlement Report for
             <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %>
+          {{- end -}}
         </title>
         <style>
             body {
@@ -760,8 +766,14 @@ spec:
       <div class="container">
         <!-- Header Section -->
         <div class="header">
-          <h1>External Bilateral Settlement Report for
-            <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %>
+          <h1>
+            {{- if .Values.templates.titles.dfspSettlementExternalParticipant -}}
+              {{ .Values.templates.titles.dfspSettlementExternalParticipant }}
+              <%= selectedExternalParticipant && selectedExternalParticipant[0] ? ' for ' + selectedExternalParticipant[0].externalParticipantName : '' %>
+            {{- else -}}
+              External Bilateral Settlement Report for
+              <%= selectedExternalParticipant && selectedExternalParticipant[0] ? selectedExternalParticipant[0].externalParticipantName : '' %>
+            {{- end -}}
           </h1>
           {{- if .Values.templates.topBarLogoUrl -}}
           <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">

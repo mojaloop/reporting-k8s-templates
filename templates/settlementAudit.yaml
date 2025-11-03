@@ -245,7 +245,13 @@ spec:
                     padding-top: 20px;
                 }
             </style>
-            <title> DFSP Settlement Statement</title>
+            <title>
+              {{- if .Values.templates.titles.settlementAudit -}}
+                {{ .Values.templates.titles.settlementAudit }}
+              {{- else -}}
+                Settlement Audit Report
+              {{- end -}}
+            </title>
         </head>
         <%
         // Minified Bignumber.js
@@ -274,7 +280,13 @@ spec:
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>Settlement Audit</h1>
+                    <h1>
+                      {{- if .Values.templates.titles.settlementAudit -}}
+                        {{ .Values.templates.titles.settlementAudit }}
+                      {{- else -}}
+                        Settlement Audit
+                      {{- end -}}
+                    </h1>
                     {{- if .Values.templates.topBarLogoUrl -}}
                     <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
                     {{- end }}
