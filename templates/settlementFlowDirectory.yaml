@@ -114,7 +114,7 @@ spec:
         {{- if .Values.templates.titles.settlementFlowDirectory -}}
           {{ .Values.templates.titles.settlementFlowDirectory }}
         {{- else -}}
-          Mojaloop Settlement Flow Reports Directory
+          Mojaloop Settlement Flow Directory
         {{- end -}}
       </h1>
       <p>This directory lists available settlement flow reports and provides direct links for easy access. CSV links are also available for each report.</p>

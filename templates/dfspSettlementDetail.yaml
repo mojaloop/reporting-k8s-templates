@@ -322,7 +322,7 @@ spec:
             {{ .Values.templates.titles.dfspSettlementDetail }}
             <%= selectedParticipant && selectedParticipant[0] ? ' for ' + selectedParticipant[0].name : '' %>
           {{- else -}}
-            DFSP Settlement Detail Report for
+            DFSP Settlement Detail for
             <%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %>
           {{- end -}}
         </title>
@@ -585,7 +585,7 @@ spec:
               {{ .Values.templates.titles.dfspSettlementDetail }}
               <%= selectedParticipant && selectedParticipant[0] ? ' for ' + selectedParticipant[0].name : '' %>
             {{- else -}}
-              DFSP Settlement Detail Report for
+              DFSP Settlement Detail for
               <%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %>
             {{- end -}}
             </h1>
