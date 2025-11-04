@@ -414,7 +414,7 @@ spec:
           {{- if .Values.templates.titles.bilateralSettlementExternalParticipants -}}
             {{ .Values.templates.titles.bilateralSettlementExternalParticipants }}
           {{- else -}}
-            Bilateral Settlement Report for Regional DRPP
+            Bilateral Settlement Report for Regional Scheme
           {{- end -}}
         </title>
         <style>
@@ -887,7 +887,7 @@ spec:
           {{- if .Values.templates.titles.bilateralSettlementExternalParticipants -}}
             {{ .Values.templates.titles.bilateralSettlementExternalParticipants }}
           {{- else -}}
-            Bilateral Settlement Report for Regional DRPP
+            Bilateral Settlement Report for Regional Scheme
           {{- end -}}
           </h1>
           {{- if .Values.templates.topBarLogoUrl -}}

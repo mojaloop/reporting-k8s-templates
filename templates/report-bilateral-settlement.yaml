@@ -210,7 +210,7 @@ spec:
           {{- if .Values.templates.titles.bilateralSettlement -}}
             {{ .Values.templates.titles.bilateralSettlement }}
           {{- else -}}
-            DRPP Bilateral Net Settlement Report
+            Bilateral Net Settlement Report
           {{- end -}}
         </title>
         <style>
@@ -498,7 +498,7 @@ spec:
                   {{- if .Values.templates.titles.bilateralSettlement -}}
                     {{ .Values.templates.titles.bilateralSettlement }}
                   {{- else -}}
-                    DRPP Bilateral Net Settlement Report
+                    Bilateral Net Settlement Report
                   {{- end -}}
                 </h1>
                 {{- if .Values.templates.topBarLogoUrl -}}

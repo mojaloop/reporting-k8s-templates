@@ -98,7 +98,7 @@ spec:
           {{- if .Values.templates.titles.transaction -}}
             {{ .Values.templates.titles.transaction }}
           {{- else -}}
-            DRPP Transaction Report
+            Transaction Report
           {{- end -}}
         </title>
         <style>
@@ -240,7 +240,7 @@ spec:
                   {{- if .Values.templates.titles.transaction -}}
                     {{ .Values.templates.titles.transaction }}
                   {{- else -}}
-                    DRPP Transaction Report
+                    Transaction Report
                   {{- end -}}
                 </h1>
                 {{- if .Values.templates.topBarLogoUrl -}}
