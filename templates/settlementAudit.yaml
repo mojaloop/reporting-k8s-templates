@@ -249,7 +249,7 @@ spec:
               {{- if .Values.templates.titles.settlementAudit -}}
                 {{ .Values.templates.titles.settlementAudit }}
               {{- else -}}
-                DFSP Settlement Statement
+                Settlement Audit
               {{- end -}}
             </title>
         </head>
@@ -284,7 +284,7 @@ spec:
                       {{- if .Values.templates.titles.settlementAudit -}}
                         {{ .Values.templates.titles.settlementAudit }}
                       {{- else -}}
-                        DFSP Settlement Statement
+                        Settlement Audit
                       {{- end -}}
                     </h1>
                     {{- if .Values.templates.topBarLogoUrl -}}
