@@ -249,7 +249,7 @@ spec:
               {{- if .Values.templates.titles.settlementAudit -}}
                 {{ .Values.templates.titles.settlementAudit }}
               {{- else -}}
-                Settlement Audit Report
+                DFSP Settlement Statement
               {{- end -}}
             </title>
         </head>
