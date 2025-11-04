@@ -135,7 +135,7 @@ spec:
         {{- if .Values.templates.titles.unfinalizedTransfers -}}
           {{ .Values.templates.titles.unfinalizedTransfers }}
         {{- else -}}
-          Unfinalized Transfers & FXTransfers
+          Unfinalized Transfers & FX Transfers Report
         {{- end -}}
       </title>
         <style>
@@ -333,7 +333,7 @@ spec:
           {{- if .Values.templates.titles.unfinalizedTransfers -}}
             {{ .Values.templates.titles.unfinalizedTransfers }}
           {{- else -}}
-            DRPP Transaction Report
+            Unfinalized Transfers & FX Transfers Report
           {{- end }}
           </h1>
           {{- if .Values.templates.topBarLogoUrl -}}
