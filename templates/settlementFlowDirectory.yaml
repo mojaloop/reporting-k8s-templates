@@ -54,7 +54,7 @@ spec:
         {{- if .Values.templates.titles.settlementFlowDirectory -}}
           {{ .Values.templates.titles.settlementFlowDirectory }}
         {{- else -}}
-          Mojaloop Settlement Flow Reports Directory
+          Mojaloop Settlement Flow Directory
         {{- end -}}
       </title>
       <style>
