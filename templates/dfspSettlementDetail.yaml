@@ -320,11 +320,10 @@ spec:
         <title>
           {{- if .Values.templates.titles.dfspSettlementDetail -}}
             {{ .Values.templates.titles.dfspSettlementDetail }}
-            <%= selectedParticipant && selectedParticipant[0] ? ' for ' + selectedParticipant[0].name : '' %>
           {{- else -}}
-            DFSP Settlement Detail for
-            <%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %>
+            DFSP Settlement Detail Report
           {{- end -}}
+          <%= selectedParticipant && selectedParticipant[0] ? ' for ' + selectedParticipant[0].name : '' %>
         </title>
         <style>
             body {
