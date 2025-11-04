@@ -121,7 +121,13 @@ spec:
                 font-weight: bold;
             }
         </style>
-        <title>FSP Settlement Report</title>
+        <title>
+          {{- if .Values.templates.titles.reconciliationAmount -}}
+            {{ .Values.templates.titles.reconciliationAmount }}
+          {{- else -}}
+            FSP Settlement Report
+          {{- end -}}
+        </title>
     </head>
     <body>
 

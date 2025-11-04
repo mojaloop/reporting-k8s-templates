@@ -131,7 +131,13 @@ spec:
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Unfinalized Transfers & FXTransfers</title>
+      <title>
+        {{- if .Values.templates.titles.unfinalizedTransfers -}}
+          {{ .Values.templates.titles.unfinalizedTransfers }}
+        {{- else -}}
+          Unfinalized Transfers & FX Transfers Report
+        {{- end -}}
+      </title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -323,10 +329,16 @@ spec:
     <body>
       <div class="container">
         <div class="header">
-            <h1>DRPP Transaction Report</h1>
-            {{- if .Values.templates.topBarLogoUrl -}}
+          <h1>
+          {{- if .Values.templates.titles.unfinalizedTransfers -}}
+            {{ .Values.templates.titles.unfinalizedTransfers }}
+          {{- else -}}
+            Unfinalized Transfers & FX Transfers Report
+          {{- end }}
+          </h1>
+          {{- if .Values.templates.topBarLogoUrl -}}
             <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
-            {{- end }}
+          {{- end }}
         </div>
 
         <div class="summary">

@@ -382,7 +382,13 @@ spec:
                 margin: 5px 0;
             }
         </style>
-        <title>FSP Reconciliation Report</title>
+        <title>
+          {{- if .Values.templates.titles.transactionReconciliation -}}
+            {{ .Values.templates.titles.transactionReconciliation }}
+          {{- else -}}
+            FSP Reconciliation Report
+          {{- end -}}
+        </title>
     </head>
     <body>
       <%
@@ -482,7 +488,13 @@ spec:
       %>
       <div class="container" data-json="<%= JSON.stringify(legacyTransferReport) %>" >
         <div class="header">
-            <h1>FSP Reconciliation Report</h1>
+            <h1>
+              {{- if .Values.templates.titles.transactionReconciliation -}}
+                {{ .Values.templates.titles.transactionReconciliation }}
+              {{- else -}}
+                FSP Reconciliation Report
+              {{- end -}}
+            </h1>
             {{- if .Values.templates.topBarLogoUrl -}}
             <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
             {{- end }}

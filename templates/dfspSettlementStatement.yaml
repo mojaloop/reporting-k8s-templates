@@ -101,7 +101,15 @@ spec:
                 border: none;
             }
         </style>
-        <title> DFSP Settlement Statement</title>
+        <title>
+          {{- if .Values.templates.titles.dfspSettlementStatement -}}
+            {{ .Values.templates.titles.dfspSettlementStatement }}
+            <%= dfspInfo && dfspInfo[0] ? ' for ' + dfspInfo[0].name : '' %>
+          {{- else -}}
+            DFSP Settlement Statement
+            <%= dfspInfo && dfspInfo[0] ? ' for ' + dfspInfo[0].name : '' %>
+          {{- end -}}
+        </title>
     </head>
 
     <body>

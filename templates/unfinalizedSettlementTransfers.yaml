@@ -216,7 +216,13 @@ spec:
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Unfinalized Transfers in Settlement</title>
+      <title>
+        {{- if .Values.templates.titles.unfinalizedSettlementTransfers -}}
+          {{ .Values.templates.titles.unfinalizedSettlementTransfers }}
+        {{- else -}}
+          Unfinalized Transfers in Settlement
+        {{- end -}}
+      </title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -412,7 +418,13 @@ spec:
     <body>
       <div class="container">
       <div class="header">
-        <h1>Unfinalized Transfers in Settlement</h1>
+        <h1>
+          {{- if .Values.templates.titles.unfinalizedSettlementTransfers -}}
+            {{ .Values.templates.titles.unfinalizedSettlementTransfers }}
+          {{- else -}}
+            Unfinalized Transfers in Settlement
+          {{- end -}}
+        </h1>
         {{- if .Values.templates.topBarLogoUrl -}}
         <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
         {{- end }}

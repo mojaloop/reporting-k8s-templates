@@ -94,7 +94,13 @@ spec:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>DRPP Transaction Report</title>
+        <title>
+          {{- if .Values.templates.titles.transaction -}}
+            {{ .Values.templates.titles.transaction }}
+          {{- else -}}
+            Transaction Report
+          {{- end -}}
+        </title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -230,7 +236,13 @@ spec:
     <body>
         <div class="container">
             <div class="header">
-                <h1>DRPP Transaction Report</h1>
+                <h1>
+                  {{- if .Values.templates.titles.transaction -}}
+                    {{ .Values.templates.titles.transaction }}
+                  {{- else -}}
+                    Transaction Report
+                  {{- end -}}
+                </h1>
                 {{- if .Values.templates.topBarLogoUrl -}}
                 <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
                 {{- end }}
