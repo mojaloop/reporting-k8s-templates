@@ -317,7 +317,14 @@ spec:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>DFSP Settlement Detail for <%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %></title>
+        <title>
+          {{- if .Values.templates.titles.dfspSettlementDetail -}}
+            {{ .Values.templates.titles.dfspSettlementDetail }}
+          {{- else -}}
+            DFSP Settlement Detail Report
+          {{- end -}}
+          <%= selectedParticipant && selectedParticipant[0] ? ' for ' + selectedParticipant[0].name : '' %>
+        </title>
         <style>
             body {
                 font-family: 'Arial', sans-serif;
@@ -572,7 +579,15 @@ spec:
       <div class="container">
         <!-- Header Section -->
         <div class="header">
-          <h1>DFSP Settlement Detail for <%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %></h1>
+            <h1>
+            {{- if .Values.templates.titles.dfspSettlementDetail -}}
+              {{ .Values.templates.titles.dfspSettlementDetail }}
+              <%= selectedParticipant && selectedParticipant[0] ? ' for ' + selectedParticipant[0].name : '' %>
+            {{- else -}}
+              DFSP Settlement Detail for
+              <%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %>
+            {{- end -}}
+            </h1>
           {{- if .Values.templates.topBarLogoUrl -}}
           <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
           {{- end }}

@@ -99,7 +99,13 @@ spec:
                 font-weight: bold;
             }
         </style>
-        <title>Settlement Bank Report</title>
+        <title>
+          {{- if .Values.templates.titles.settlement -}}
+            {{ .Values.templates.titles.settlement }}
+          {{- else -}}
+            Settlement Bank Report
+          {{- end -}}
+        </title>
     </head>
     <body>
 
