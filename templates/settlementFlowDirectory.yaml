@@ -133,7 +133,7 @@ spec:
         <thead>
         <tr>
           <th>Required Params</th>
-          <th>Example URLs</th>
+          <th>Settlement IDs (links)</th>
           <th>CSV Links</th>
         </tr>
         </thead>
@@ -146,7 +146,7 @@ spec:
         for (let i = 0; i < sortedSettlements.length; i++) {
         const s = sortedSettlements[i];
           %>
-        <a class="url-link" href="/api/reports/reporting-bilateral-settlements-external-participants?settlementId=<%= s.settlementId %>">
+        <a class="url-link" href="/api/reports/reporting-bilateral-settlements-external-participants?settlementId=<%= s.settlementId %>" target="_blank" rel="noopener">
         <%= s.settlementId %>
         </a>
           <% } %>
@@ -156,7 +156,7 @@ spec:
         for (let i = 0; i < sortedSettlements.length; i++) {
         const s = sortedSettlements[i];
           %>
-        <a class="url-link" href="/api/reports/reporting-bilateral-settlements-external-participants?settlementId=<%= s.settlementId %>&format=csv">
+        <a class="url-link" href="/api/reports/reporting-bilateral-settlements-external-participants?settlementId=<%= s.settlementId %>&format=csv" target="_blank" rel="noopener">
         <%= s.settlementId %>
         </a>
           <% } %>
@@ -185,18 +185,18 @@ spec:
           <% for (const s of sortedSettlementsUnfinalized) {
             const settlementId = s.settlementId;
           %>
-          <a class="url-link" href="/api/reports/unfinalizedSettlementTransfers?settlementId=<%= settlementId %>">
+            <a class="url-link" href="/api/reports/unfinalizedSettlementTransfers?settlementId=<%= settlementId %>" target="_blank" rel="noopener">
             <%= settlementId %>
-          </a>
-          <% } %>
-        </td>
-        <td>
-          <% for (const s of sortedSettlementsUnfinalized) {
+            </a>
+            <% } %>
+          </td>
+          <td>
+            <% for (const s of sortedSettlementsUnfinalized) {
             const settlementId = s.settlementId;
-          %>
-          <a class="url-link" href="/api/reports/unfinalizedSettlementTransfers?settlementId=<%= settlementId %>&format=csv">
+            %>
+            <a class="url-link" href="/api/reports/unfinalizedSettlementTransfers?settlementId=<%= settlementId %>&format=csv" target="_blank" rel="noopener">
             <%= settlementId %>
-          </a>
+            </a>
           <% } %>
         </td>
         </tr>
@@ -228,7 +228,7 @@ spec:
           const included = sortedSettlements[i].includedParticipants || [];
           if (included.includes(p.participantName)) {
         %>
-        <a class="url-link" href="/api/reports/dfspSettlementDetail?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>">
+        <a class="url-link" href="/api/reports/dfspSettlementDetail?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>" target="_blank" rel="noopener">
           <%= sid %>
         </a>
         <% }} %>
@@ -240,7 +240,7 @@ spec:
           const included = sortedSettlements[i].includedParticipants || [];
           if (included.includes(p.participantName)) {
         %>
-        <a class="url-link" href="/api/reports/dfspSettlementDetail?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>&format=csv">
+        <a class="url-link" href="/api/reports/dfspSettlementDetail?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>&format=csv" target="_blank" rel="noopener">
           <%= sid %>
         </a>
         <% }} %>
@@ -272,7 +272,7 @@ spec:
         for (let i = 0; i < sortedSettlements.length; i++) {
           const sid = sortedSettlements[i].settlementId;
         %>
-        <a class="url-link" href="/api/reports/dfspSettlementDetailExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>">
+        <a class="url-link" href="/api/reports/dfspSettlementDetailExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>" target="_blank" rel="noopener">
           <%= sid %>
         </a>
         <% } %>
@@ -282,7 +282,7 @@ spec:
         for (let i = 0; i < sortedSettlements.length; i++) {
           const sid = sortedSettlements[i].settlementId;
         %>
-        <a class="url-link" href="/api/reports/dfspSettlementDetailExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>&format=csv">
+        <a class="url-link" href="/api/reports/dfspSettlementDetailExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>&format=csv" target="_blank" rel="noopener">
           <%= sid %>
         </a>
         <% } %>
@@ -317,7 +317,7 @@ spec:
           const included = sortedSettlements[i].includedParticipants || [];
           if (included.includes(p.participantName)) {
         %>
-        <a class="url-link" href="/api/reports/dfspSettlement?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>">
+        <a class="url-link" href="/api/reports/dfspSettlement?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>" target="_blank" rel="noopener">
           <%= sid %>
         </a>
         <% }} %>
@@ -329,7 +329,7 @@ spec:
           const included = sortedSettlements[i].includedParticipants || [];
           if (included.includes(p.participantName)) {
         %>
-        <a class="url-link" href="/api/reports/dfspSettlement?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>&format=csv">
+        <a class="url-link" href="/api/reports/dfspSettlement?settlementId=<%= sid %>&fspId=<%= encodeURIComponent(p.participantName) %>&format=csv" target="_blank" rel="noopener">
           <%= sid %>
         </a>
         <% }} %>
@@ -361,7 +361,7 @@ spec:
         for (let i = 0; i < sortedSettlements.length; i++) {
           const sid = sortedSettlements[i].settlementId;
         %>
-        <a class="url-link" href="/api/reports/dfspSettlementExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>">
+        <a class="url-link" href="/api/reports/dfspSettlementExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>" target="_blank" rel="noopener">
           <%= sid %>
         </a>
         <% } %>
@@ -371,8 +371,7 @@ spec:
         for (let i = 0; i < sortedSettlements.length; i++) {
           const sid = sortedSettlements[i].settlementId;
         %>
-
-        <a class="url-link" href="/api/reports/dfspSettlementExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>&format=csv">
+        <a class="url-link" href="/api/reports/dfspSettlementExternalParticipant?settlementId=<%= sid %>&externalParticipantFspId=<%= encodeURIComponent(p.participantName) %>&format=csv" target="_blank" rel="noopener">
           <%= sid %>
         </a>
         <% } %>
