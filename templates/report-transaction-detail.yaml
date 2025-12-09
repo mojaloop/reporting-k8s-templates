@@ -54,7 +54,8 @@ spec:
           `fda`.`name` as `fxpName`,
           `tsc`.`transferStateId` as `transferState`,
           `tsc`.`reason` as `reason`,
-          `tsc`.`createdDate` as `completedTimestamp`
+          `tsc`.`createdDate` as `completedTimestamp`,
+          `transfer`.`createdDate` as `submittedAt`
         from
             `transfer`
         inner join `transferParticipant` as `tp1` on
@@ -390,7 +391,7 @@ spec:
 
     <%
       const transferId = transfers[0]?.transferId;
-      const submittedAt = transfers[0]?.createdDate;
+      const submittedAt = transfers[0]?.submittedAt;
       // Prefer sourceAmount/targetAmount, fallback to payerAmount/payeeAmount
       const sourceAmount = Math.abs(transfers[0]?.sourceAmount ?? transfers[0]?.payerAmount);
       const sourceCurrency = transfers[0]?.sourceCurrency ?? transfers[0]?.currency;
@@ -460,7 +461,11 @@ spec:
               <tr>
               <tr>
                 <td>
-                At <i><%=submittedAt%></i> <b><%=formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2)%> <%=sourceCurrency%></b> was transferred from <%=payerFspName%> to <%=payeeFspName%> who received <b><%=formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2)%> <%=targetCurrency%></b>.
+                <% if (submittedAt) { %>
+                  At <i><%= new Date(submittedAt).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></i>, <b><%=formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2)%> <%=sourceCurrency%></b> was transferred from <%=payerFspName%> to <%=payeeFspName%>, who received <b><%=formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2)%> <%=targetCurrency%></b>.
+                <% } else { %>
+                  <b><%=formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2)%> <%=sourceCurrency%></b> was transferred from <%=payerFspName%> to <%=payeeFspName%>, who received <b><%=formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2)%> <%=targetCurrency%></b>.
+                <% } %>
                 <br /><%=payerFspName%> <%= payerFspName!=payerProxyName ? `was represented by ${payerProxyName} who` : '' %> was debited by <%=formatAmount(sourceAmount, currencyMap[sourceCurrency]?.scale || 2)%> <%=sourceCurrency%>.
                 <br /><%=payeeFspName%> <%= payeeFspName!=payeeProxyName ? `was represented by ${payeeProxyName} who` : '' %> was credited by <%=formatAmount(targetAmount, currencyMap[targetCurrency]?.scale || 2)%> <%=targetCurrency%>.
                 <br />
