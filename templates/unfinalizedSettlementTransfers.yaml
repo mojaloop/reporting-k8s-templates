@@ -414,8 +414,49 @@ spec:
       const windowClosedStr = ''; // Not available in getSettlementDetails
       const settlementState = settlementDetails.settlementStateId || '';
     %>
+    <%
+      // Use getSettlementWindowsInSettlement for window info
+      const swDetails = getSettlementWindowsInSettlement[0] || {};
+      const earliestOpen = swDetails.earliestWindowOpened ? new Date(swDetails.earliestWindowOpened).toISOString() : '';
+      const latestClose = swDetails.lastWindowClosed ? new Date(swDetails.lastWindowClosed).toISOString() : '';
+      const windowIds = typeof swDetails.settlementWindowIds === 'string' && swDetails.settlementWindowIds.length > 0
+        ? swDetails.settlementWindowIds.split(',').map(s => s.trim())
+        : [];
+      const reportUrl = earliestOpen && latestClose
+        ? `/api/reports/unfinalizedTransfers?startDate=${encodeURIComponent(earliestOpen)}&endDate=${encodeURIComponent(latestClose)}`
+        : '';
+      // Count unique transferIds and commitRequestIds
+      const uniqueTransferIds = new Set(unfinalizedTransfers.map(t => t.transferId));
+      const uniqueFxTransferIds = new Set(unfinalizedFxTransfers.map(fx => fx.commitRequestId));
+      const dataForJson = {
+        settlement: {
+          id: settlementDetails.settlementId || '',
+          modelId: settlementDetails.settlementModelId || '',
+          createdDate: settlementDetails.settlementCreated || '',
+          state: settlementDetails.settlementStateId || '',
+          stateChangeId: settlementDetails.settlementStateChangeId || '',
+          stateChangedDate: settlementDetails.settlementStateChanged || '',
+          reason: settlementDetails.reason || ''
+        },
+        settlementWindows: {
+          ids: windowIds,
+          earliestOpened: earliestOpen,
+          lastClosed: latestClose,
+          details: Array.isArray(swDetails.windowDetails) ? swDetails.windowDetails : []
+        },
+        currencies: getAllCurrency,
+        unfinalizedTransfers: unfinalizedTransfers,
+        unfinalizedFxTransfers: unfinalizedFxTransfers,
+        summary: {
+          totalUnfinalizedTransfers: uniqueTransferIds.size,
+          totalUnfinalizedFxTransfers: uniqueFxTransferIds.size,
+          totalUnfinalized: uniqueTransferIds.size + uniqueFxTransferIds.size
+        },
+        reportUrl: reportUrl
+      };
     %>
-    <body>
+
+    <body data-json="<%= JSON.stringify(dataForJson) %>">
       <div class="container">
       <div class="header">
         <h1>
@@ -430,33 +471,16 @@ spec:
         {{- end }}
       </div>
 
-      <%
-        // Use getSettlementWindowsInSettlement for window info
-        const swDetails = getSettlementWindowsInSettlement[0] || {};
-        const earliestOpen = swDetails.earliestWindowOpened ? new Date(swDetails.earliestWindowOpened).toISOString() : '';
-        const latestClose = swDetails.lastWindowClosed ? new Date(swDetails.lastWindowClosed).toISOString() : '';
-        const windowIds = typeof swDetails.settlementWindowIds === 'string' && swDetails.settlementWindowIds.length > 0
-          ? swDetails.settlementWindowIds.split(',').map(s => s.trim())
-          : [];
-        const reportUrl = earliestOpen && latestClose
-          ? `/api/reports/unfinalizedTransfers?startDate=${encodeURIComponent(earliestOpen)}&endDate=${encodeURIComponent(latestClose)}`
-          : '';
-      %>
-
       <div class="summary">
-        <p>Settlement ID: <%= settlementDetails.settlementId || '' %></p>
-        <p>State: <%= settlementState %></p>
-        <p>First Opened: <%= earliestOpen ? new Date(earliestOpen).toLocaleString() : '' %></p>
-        <p>Last Closed: <%= latestClose ? new Date(latestClose).toLocaleString() : '' %></p>
-        <%
-          // Count unique transferIds and commitRequestIds
-          const uniqueTransferIds = new Set(unfinalizedTransfers.map(t => t.transferId));
-          const uniqueFxTransferIds = new Set(unfinalizedFxTransfers.map(fx => fx.commitRequestId));
-        %>
-        <p>Total Unfinalized Transfers: <%= uniqueTransferIds.size %></p>
-        <p>Total Unfinalized FX Transfers: <%= uniqueFxTransferIds.size %></p>
-        <p>Total Unfinalized (Transfers + FX Transfers): <%= uniqueTransferIds.size + uniqueFxTransferIds.size %></p>
-        <% if (windowIds.length > 0 && Array.isArray(swDetails.windowDetails)) { %>
+        <p>Settlement ID: <%= dataForJson.settlement.id %></p>
+        <p>State: <%= dataForJson.settlement.state %></p>
+        <p>First Opened: <%= dataForJson.settlementWindows.earliestOpened ? new Date(dataForJson.settlementWindows.earliestOpened).toLocaleString() : '' %></p>
+        <p>Last Closed: <%= dataForJson.settlementWindows.lastClosed ? new Date(dataForJson.settlementWindows.lastClosed).toLocaleString() : '' %></p>
+
+        <p>Total Unfinalized Transfers: <%= dataForJson.summary.totalUnfinalizedTransfers %></p>
+        <p>Total Unfinalized FX Transfers: <%= dataForJson.summary.totalUnfinalizedFxTransfers %></p>
+        <p>Total Unfinalized (Transfers + FX Transfers): <%= dataForJson.summary.totalUnfinalized %></p>
+        <% if (dataForJson.settlementWindows.ids.length > 0 && Array.isArray(dataForJson.settlementWindows.details)) { %>
           <div class="marginBottom10px">
             <strong>Settlement Windows in Settlement:</strong>
             <table style="margin-top: 5px; width: auto; border-collapse: collapse;">
@@ -487,9 +511,9 @@ spec:
 
       <% if (reportUrl) { %>
         <p>
-          <a class="highlight-link" href="<%= reportUrl %>" target="_blank">
-            View Unfinalized Transfers Report (Finance Portal)
-          </a>
+            <a class="highlight-link" href="<%= reportUrl %>" target="_blank" rel="noopener">
+              View Unfinalized Transfers Report (Finance Portal)
+            </a>
         </p>
       <% } %>
 
@@ -510,7 +534,7 @@ spec:
         <%
           // Group by transferId and extract payer/payee
           const transferGroups = {};
-          for (const t of unfinalizedTransfers) {
+          for (const t of dataForJson.unfinalizedTransfers) {
           if (!transferGroups[t.transferId]) transferGroups[t.transferId] = [];
           transferGroups[t.transferId].push(t);
           }
@@ -528,78 +552,77 @@ spec:
           <!-- Spacer row with currency name -->
           <tr>
           <td colspan="7" class="currency-header-row">
-        <%= currencyMap[currency]?.currencyId || currency %>
+            <%= (dataForJson.currencies.find(c => c.currencyId === currency) || {}).currencyId || currency %>
           </td>
           </tr>
           <%
           for (const group of currencyTransferMap[currency]) {
-        let payerFsp = '', payeeFsp = '';
-        let payerName = '', payerExternal = '', payeeName = '', payeeExternal = '';
-        for (const t of group) {
-        const roleId = String(t.transferParticipantRoleTypeId).toUpperCase();
-        if (roleId === '1' || roleId === 'PAYER_DFSP') {
-          payerName = t.participantName || '';
-          payerExternal = t.externalParticipantName || '';
-        }
-        if (roleId === '2' || roleId === 'PAYEE_DFSP') {
-          payeeName = t.participantName || '';
-          payeeExternal = t.externalParticipantName || '';
-        }
-        }
-        function displayName(participantName, externalParticipantName) {
-        return externalParticipantName
+            let payerName = '', payerExternal = '', payeeName = '', payeeExternal = '';
+            for (const t of group) {
+              const roleId = String(t.transferParticipantRoleTypeId).toUpperCase();
+              if (roleId === '1' || roleId === 'PAYER_DFSP') {
+                payerName = t.participantName || '';
+                payerExternal = t.externalParticipantName || '';
+              }
+              if (roleId === '2' || roleId === 'PAYEE_DFSP') {
+              payeeName = t.participantName || '';
+              payeeExternal = t.externalParticipantName || '';
+              }
+            }
+          function displayName(participantName, externalParticipantName) {
+            return externalParticipantName
           ? `${participantName} (${externalParticipantName})`
           : participantName;
-        }
-        payerFsp = displayName(payerName, payerExternal);
-        payeeFsp = displayName(payeeName, payeeExternal);
-        // Use first row for other fields
-        const t = group[0];
+          }
+          const payerFsp = displayName(payerName, payerExternal);
+          const payeeFsp = displayName(payeeName, payeeExternal);
+          // Use first row for other fields
+          const t = group[0];
           %>
           <tr class="main-row">
           <td><%= payerFsp %></td>
           <td><%= payeeFsp %></td>
           <td><%= t.transferId %></td>
           <td><%= t.transferStateId %></td>
-          <td><%= formatAmount(Math.abs(t.amount), currencyMap[t.currencyId]?.scale || 2) %></td>
-          <td><%= currencyMap[t.currencyId]?.currencyId || t.currencyId %></td>
+          <td><%= formatAmount(Math.abs(t.amount), (dataForJson.currencies.find(c => c.currencyId === t.currencyId) || {}).scale || 2) %></td>
+          <td><%= (dataForJson.currencies.find(c => c.currencyId === t.currencyId) || {}).currencyId || t.currencyId %></td>
           <td><%= t.createdDate ? new Date(t.createdDate).toLocaleString() : '' %></td>
           </tr>
           <%
-        // If FX info exists, show additional row with same headers
-        if (
-          t.fxCommitRequestId ||
-          t.fxTransferStateId ||
-          t.fxSourceAmount ||
-          t.fxSourceCurrency ||
-          t.fxTargetAmount ||
-          t.fxTargetCurrency ||
-          t.fxCreatedDate
-        ) {
+          // If FX info exists, show additional row with same headers
+          if (
+            t.fxCommitRequestId ||
+            t.fxTransferStateId ||
+            t.fxSourceAmount ||
+            t.fxSourceCurrency ||
+            t.fxTargetAmount ||
+            t.fxTargetCurrency ||
+            t.fxCreatedDate
+          ) {
           %>
           <tr class="main-row smallFont offwhite">
           <td style="text-align:center;">
-        <span style="font-size:1.2em;">&#10551;</span>
+            <span style="font-size:1.2em;">&#10551;</span>
           </td>
           <td colspan="1"></td>
           <td>
-        <%= t.fxCommitRequestId ? 'commitRequestId: ' + t.fxCommitRequestId : '' %>
+            <%= t.fxCommitRequestId ? 'commitRequestId: ' + t.fxCommitRequestId : '' %>
           </td>
           <td><%= t.fxTransferStateId ? t.fxTransferStateId : '' %></td>
           <td>
-        <%= t.fxSourceAmount ? formatAmount(Math.abs(t.fxSourceAmount), currencyMap[t.fxSourceCurrency]?.scale || 2) : '' %>
-        <%= t.fxTargetAmount ? ' → ' + formatAmount(Math.abs(t.fxTargetAmount), currencyMap[t.fxTargetCurrency]?.scale || 2) : '' %>
+            <%= t.fxSourceAmount ? formatAmount(Math.abs(t.fxSourceAmount), (dataForJson.currencies.find(c => c.currencyId === t.fxSourceCurrency) || {}).scale || 2) : '' %>
+            <%= t.fxTargetAmount ? ' → ' + formatAmount(Math.abs(t.fxTargetAmount), (dataForJson.currencies.find(c => c.currencyId === t.fxTargetCurrency) || {}).scale || 2) : '' %>
           </td>
           <td>
-        <%= t.fxSourceCurrency ? currencyMap[t.fxSourceCurrency]?.currencyId || t.fxSourceCurrency : '' %>
-        <%= t.fxTargetCurrency ? ' → ' + (currencyMap[t.fxTargetCurrency]?.currencyId || t.fxTargetCurrency) : '' %>
+            <%= t.fxSourceCurrency ? (dataForJson.currencies.find(c => c.currencyId === t.fxSourceCurrency) || {}).currencyId || t.fxSourceCurrency : '' %>
+            <%= t.fxTargetCurrency ? ' → ' + ((dataForJson.currencies.find(c => c.currencyId === t.fxTargetCurrency) || {}).currencyId || t.fxTargetCurrency) : '' %>
           </td>
           <td>
-        FX Created: <%= t.fxCreatedDate ? new Date(t.fxCreatedDate).toLocaleString() : '' %>
+            FX Created: <%= t.fxCreatedDate ? new Date(t.fxCreatedDate).toLocaleString() : '' %>
           </td>
           </tr>
           <%
-        } else {
+          } else {
           %>
           <tr class="main-row smallFont offwhite">
         <td colspan="7" style="text-align:center;">
@@ -607,9 +630,9 @@ spec:
         </td>
           </tr>
           <%
+          }
         }
-        %>
-          <% } %>
+          %>
         <% } %>
         </tbody>
       </table>
@@ -632,9 +655,8 @@ spec:
         </thead>
         <tbody>
         <%
-          // Group by commitRequestId and extract initiating/counterparty
           const fxGroups = {};
-          for (const fx of unfinalizedFxTransfers) {
+          for (const fx of dataForJson.unfinalizedFxTransfers) {
           if (!fxGroups[fx.commitRequestId]) fxGroups[fx.commitRequestId] = [];
           fxGroups[fx.commitRequestId].push(fx);
           }
@@ -652,32 +674,32 @@ spec:
           <!-- Spacer row with currency name -->
           <tr>
           <td colspan="10" class="currency-header-row">
-        <%= currencyMap[currency]?.currencyId || currency %>
+            <%= (dataForJson.currencies.find(c => c.currencyId === currency) || {}).currencyId || currency %>
           </td>
           </tr>
           <%
-          for (const group of fxCurrencyMap[currency]) {
-        let initiatingName = '', initiatingExternal = '', counterPartyName = '', counterPartyExternal = '';
-        for (const fx of group) {
-        const roleId = String(fx.transferParticipantRoleTypeId).toUpperCase();
-        if (roleId === '6' || roleId === 'INITIATING') {
+        for (const group of fxCurrencyMap[currency]) {
+          let initiatingName = '', initiatingExternal = '', counterPartyName = '', counterPartyExternal = '';
+          for (const fx of group) {
+            const roleId = String(fx.transferParticipantRoleTypeId).toUpperCase();
+            if (roleId === '6' || roleId === 'INITIATING') {
           initiatingName = fx.participantName || '';
           initiatingExternal = fx.externalParticipantName || '';
-        }
-        if (roleId === '7' || roleId === 'COUNTER_PARTY') {
+            }
+            if (roleId === '7' || roleId === 'COUNTER_PARTY') {
           counterPartyName = fx.participantName || '';
           counterPartyExternal = fx.externalParticipantName || '';
-        }
-        }
-        function displayName(participantName, externalParticipantName) {
-        return externalParticipantName
+            }
+          }
+          function displayName(participantName, externalParticipantName) {
+            return externalParticipantName
           ? `${participantName} (${externalParticipantName})`
           : participantName;
-        }
-        const initiatingFsp = displayName(initiatingName, initiatingExternal);
-        const counterPartyFsp = displayName(counterPartyName, counterPartyExternal);
-        // Use first row for other fields
-        const fx = group[0];
+          }
+          const initiatingFsp = displayName(initiatingName, initiatingExternal);
+          const counterPartyFsp = displayName(counterPartyName, counterPartyExternal);
+          // Use first row for other fields
+          const fx = group[0];
           %>
           <tr class="main-row">
           <td><%= initiatingFsp %></td>
@@ -685,10 +707,10 @@ spec:
           <td><%= fx.commitRequestId %></td>
           <td><%= fx.determiningTransferId %></td>
           <td><%= fx.transferStateId %></td>
-          <td><%= formatAmount(Math.abs(fx.sourceAmount), currencyMap[fx.sourceCurrency]?.scale || 2) %></td>
-          <td><%= currencyMap[fx.sourceCurrency]?.currencyId || fx.sourceCurrency %></td>
-          <td><%= formatAmount(Math.abs(fx.targetAmount), currencyMap[fx.targetCurrency]?.scale || 2) %></td>
-          <td><%= currencyMap[fx.targetCurrency]?.currencyId || fx.targetCurrency %></td>
+          <td><%= formatAmount(Math.abs(fx.sourceAmount), (dataForJson.currencies.find(c => c.currencyId === fx.sourceCurrency) || {}).scale || 2) %></td>
+          <td><%= (dataForJson.currencies.find(c => c.currencyId === fx.sourceCurrency) || {}).currencyId || fx.sourceCurrency %></td>
+          <td><%= formatAmount(Math.abs(fx.targetAmount), (dataForJson.currencies.find(c => c.currencyId === fx.targetCurrency) || {}).scale || 2) %></td>
+          <td><%= (dataForJson.currencies.find(c => c.currencyId === fx.targetCurrency) || {}).currencyId || fx.targetCurrency %></td>
           <td><%= fx.createdDate ? new Date(fx.createdDate).toLocaleString() : '' %></td>
           </tr>
           <%
@@ -702,24 +724,24 @@ spec:
           %>
           <tr class="main-row smallFont offwhite">
           <td style="text-align:center;">
-        <span style="font-size:1.2em;">&#10551;</span>
+            <span style="font-size:1.2em;">&#10551;</span>
           </td>
           <td colspan="1"></td>
           <td colspan="2">
-        <%= fx.relatedTransferId ? 'Related Transfer ID: ' + fx.relatedTransferId : '' %>
+            <%= fx.relatedTransferId ? 'Related Transfer ID: ' + fx.relatedTransferId : '' %>
           </td>
           <td>
-        <%= fx.relatedTransferStateId ? fx.relatedTransferStateId : '' %>
+            <%= fx.relatedTransferStateId ? fx.relatedTransferStateId : '' %>
           </td>
           <td>
-        <%= fx.relatedTransferAmount ? formatAmount(Math.abs(fx.relatedTransferAmount), currencyMap[fx.relatedTransferCurrency]?.scale || 2) : '' %>
+            <%= fx.relatedTransferAmount ? formatAmount(Math.abs(fx.relatedTransferAmount), (dataForJson.currencies.find(c => c.currencyId === fx.relatedTransferCurrency) || {}).scale || 2) : '' %>
           </td>
           <td>
-        <%= fx.relatedTransferCurrency ? currencyMap[fx.relatedTransferCurrency]?.currencyId || fx.relatedTransferCurrency : '' %>
+            <%= fx.relatedTransferCurrency ? (dataForJson.currencies.find(c => c.currencyId === fx.relatedTransferCurrency) || {}).currencyId || fx.relatedTransferCurrency : '' %>
           </td>
           <td colspan="2"></td>
           <td>
-        <%= fx.relatedTransferCreatedDate ? 'Related Created: ' + new Date(fx.relatedTransferCreatedDate).toLocaleString() : '' %>
+            <%= fx.relatedTransferCreatedDate ? 'Related Created: ' + new Date(fx.relatedTransferCreatedDate).toLocaleString() : '' %>
           </td>
           </tr>
           <%
@@ -732,7 +754,7 @@ spec:
           </tr>
           <%
         }
-        %>
+          %>
           <% } %>
         <% } %>
         </tbody>
