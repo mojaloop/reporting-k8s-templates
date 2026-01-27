@@ -666,9 +666,10 @@ spec:
             {{- if .Values.templates.titles.dfspSettlementDetail -}}
               {{ .Values.templates.titles.dfspSettlementDetail }}
             {{- else -}}
-              DFSP Settlement Detail for
-              <%= selectedParticipant && selectedParticipant[0] ? selectedParticipant[0].name : '' %>
+              DFSP Settlement Detail
             {{- end -}}
+            <%= selectedParticipant && selectedParticipant[0] ? ' for ' + selectedParticipant[0].name : '' %>
+
             </h1>
           {{- if .Values.templates.topBarLogoUrl -}}
           <img src="{{ .Values.templates.topBarLogoUrl }}" alt="Logo">
@@ -733,9 +734,7 @@ spec:
         <div class="footer">
             <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>
         </div>
-
       </div>
     </body>
-
     </html>
 {{- end }}
