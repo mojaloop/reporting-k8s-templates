@@ -219,9 +219,10 @@ spec:
             AND initiatingQuoteParty.transferParticipantRoleTypeId = 1
           ) AS combined
           INNER JOIN
-              participantCurrency AS pc
-              ON pc.participantCurrencyId = combined.participantCurrencyId
+            participantCurrency AS pc
+            ON pc.participantCurrencyId = combined.participantCurrencyId
           WHERE combined.change > 0
+          -- No SUM, keep individual movements
           ORDER BY combined.transferId
         ) as result1
 
@@ -333,9 +334,10 @@ spec:
             AND counterpartyQuoteParty.transferParticipantRoleTypeId = 2
           ) AS combined
           INNER JOIN
-          participantCurrency AS pc
-          ON pc.participantCurrencyId = combined.participantCurrencyId
+            participantCurrency AS pc
+            ON pc.participantCurrencyId = combined.participantCurrencyId
           WHERE combined.change < 0
+          -- No SUM, keep individual movements
           ORDER BY combined.transferId
         ) as result2
         ON result1.transferId = result2.transferId AND result1.uniqueLegId = result2.uniqueLegId
@@ -367,19 +369,21 @@ spec:
         WHERE
           (
           (result1.participantCurrencyId IN (
-        SELECT participantCurrencyId
-        FROM participantCurrency
-        WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
+            SELECT participantCurrencyId
+            FROM participantCurrency
+            WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
           ))
           OR
           (result2.participantCurrencyId IN (
-        SELECT participantCurrencyId
-        FROM participantCurrency
-        WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
+            SELECT participantCurrencyId
+            FROM participantCurrency
+            WHERE participantId = (SELECT participantId FROM participant WHERE name = :fspId)
           ))
           )
         AND latestTransfer.latestStateChangeDate IS NOT NULL
-        ORDER BY latestTransfer.latestStateChangeDate;
+        ORDER BY latestTransfer.latestStateChangeDate
+        -- No GROUP BY, keep individual movements
+        ;
   template: |
     <!DOCTYPE html>
     <html lang="en">
