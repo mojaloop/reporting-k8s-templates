@@ -101,7 +101,7 @@ spec:
             tf.transferId,
             tf.transferId AS uniqueLegId,
             COALESCE(ep.name, pc.participantId) as pid,
-            NULL as externalParticipantId,
+            ep.externalParticipantId,
             ppc.change as amount,
             FALSE as isFxTransfer,
             payerQuoteParty.partyIdentifierValue as senderAccountId,
