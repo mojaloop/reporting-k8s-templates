@@ -110,117 +110,117 @@ spec:
           combined.narration
           FROM (
           SELECT
-        ppc.participantCurrencyId,
-        tf.transferId,
-        tf.transferId AS uniqueLegId,
-        COALESCE(ep.name, pc.participantId) as pid,
-        NULL as externalParticipantId,
-        ppc.change,
-        FALSE as isFxTransfer,
-        payerQuoteParty.partyIdentifierValue as senderAccountId,
-        payerQuoteParty.partyName as senderName,
-        COALESCE(
-          (SELECT te.value FROM transferExtension te
-           WHERE te.transferId = tf.transferId
-           AND te.key IN ('narration', 'description', 'note')
-           AND te.isFulfilment = 0
-           LIMIT 1),
-          q.note
-        ) as narration
+            ppc.participantCurrencyId,
+            tf.transferId,
+            tf.transferId AS uniqueLegId,
+            COALESCE(ep.name, pc.participantId) as pid,
+            NULL as externalParticipantId,
+            ppc.change,
+            FALSE as isFxTransfer,
+            payerQuoteParty.partyIdentifierValue as senderAccountId,
+            payerQuoteParty.partyName as senderName,
+            COALESCE(
+              (SELECT te.value FROM transferExtension te
+              WHERE te.transferId = tf.transferId
+              AND te.key IN ('narration', 'description', 'note')
+              AND te.isFulfilment = 0
+              LIMIT 1),
+              q.note
+            ) as narration
           FROM
-        transferFulfilment AS tf
+            transferFulfilment AS tf
           INNER JOIN
-        transferStateChange AS tsc
-        ON tsc.transferId = tf.transferId
+            transferStateChange AS tsc
+            ON tsc.transferId = tf.transferId
           INNER JOIN
-        participantPositionChange AS ppc
-        ON ppc.transferStateChangeId = tsc.transferStateChangeId
+            participantPositionChange AS ppc
+            ON ppc.transferStateChangeId = tsc.transferStateChangeId
           INNER JOIN
-        settlementParticipantCurrency AS spc
-        ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            settlementParticipantCurrency AS spc
+            ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
           INNER JOIN
-        settlementSettlementWindow ssw
-        ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            settlementSettlementWindow ssw
+            ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
           LEFT JOIN
-        participantCurrency pc
-        ON pc.participantCurrencyId = ppc.participantCurrencyId
+            participantCurrency pc
+            ON pc.participantCurrencyId = ppc.participantCurrencyId
           LEFT JOIN
-        transferParticipant tp
-        ON tp.transferId = tf.transferId AND tp.transferParticipantRoleTypeId = 1
+            transferParticipant tp
+            ON tp.transferId = tf.transferId AND tp.transferParticipantRoleTypeId = 1
           LEFT JOIN
-        externalParticipant ep
-        ON tp.externalParticipantId = ep.externalParticipantId
+            externalParticipant ep
+            ON tp.externalParticipantId = ep.externalParticipantId
           LEFT JOIN
-        transactionReference tr
-        ON tr.transactionReferenceId = tf.transferId
+            transactionReference tr
+            ON tr.transactionReferenceId = tf.transferId
           LEFT JOIN
-        quote q
-        ON q.quoteId = tr.quoteId
+            quote q
+            ON q.quoteId = tr.quoteId
           LEFT JOIN
-        quoteParty payerQuoteParty
-        ON payerQuoteParty.quoteId = q.quoteId
-        AND payerQuoteParty.transferParticipantRoleTypeId = 1
+            quoteParty payerQuoteParty
+            ON payerQuoteParty.quoteId = q.quoteId
+            AND payerQuoteParty.transferParticipantRoleTypeId = 1
 
           UNION ALL
 
           SELECT
-        ppc.participantCurrencyId,
-        fxt1.determiningTransferId AS transferId,
-        fxt1.commitRequestId AS uniqueLegId,
-        COALESCE(ep.name, pc.participantId) as pid,
-        ep.externalParticipantId,
-        ppc.change,
-        TRUE as isFxTransfer,
-        initiatingQuoteParty.partyIdentifierValue as senderAccountId,
-        initiatingQuoteParty.partyName as senderName,
-        COALESCE(
-          (SELECT te.value FROM fxTransferExtension te
-           WHERE te.commitRequestId = fxt1.commitRequestId
-           AND te.key IN ('narration', 'description', 'note')
-           AND te.isFulfilment = 0
-           LIMIT 1),
-          q.note
-        ) as narration
+            ppc.participantCurrencyId,
+            fxt1.determiningTransferId AS transferId,
+            fxt1.commitRequestId AS uniqueLegId,
+            COALESCE(ep.name, pc.participantId) as pid,
+            ep.externalParticipantId,
+            ppc.change,
+            TRUE as isFxTransfer,
+            initiatingQuoteParty.partyIdentifierValue as senderAccountId,
+            initiatingQuoteParty.partyName as senderName,
+            COALESCE(
+              (SELECT te.value FROM fxTransferExtension te
+              WHERE te.commitRequestId = fxt1.commitRequestId
+              AND te.key IN ('narration', 'description', 'note')
+              AND te.isFulfilment = 0
+              LIMIT 1),
+              q.note
+            ) as narration
           FROM
-        fxTransferFulfilment AS fxtf
+            fxTransferFulfilment AS fxtf
           INNER JOIN
-        fxTransfer AS fxt1
-        ON fxt1.commitRequestId = fxtf.commitRequestId
+            fxTransfer AS fxt1
+            ON fxt1.commitRequestId = fxtf.commitRequestId
           INNER JOIN
-        fxTransferStateChange AS fxtsc
-        ON fxtsc.commitRequestId = fxtf.commitRequestId
+            fxTransferStateChange AS fxtsc
+            ON fxtsc.commitRequestId = fxtf.commitRequestId
           INNER JOIN
-        participantPositionChange AS ppc
-        ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+            participantPositionChange AS ppc
+            ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
           INNER JOIN
-        settlementParticipantCurrency AS spc
-        ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            settlementParticipantCurrency AS spc
+            ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
           INNER JOIN
-        settlementSettlementWindow ssw
-        ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            settlementSettlementWindow ssw
+            ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
           LEFT JOIN
-        participantCurrency pc
-        ON pc.participantCurrencyId = ppc.participantCurrencyId
+            participantCurrency pc
+            ON pc.participantCurrencyId = ppc.participantCurrencyId
           LEFT JOIN
-        fxTransferParticipant ftp
-        ON ftp.commitRequestId = fxt1.commitRequestId AND ftp.transferParticipantRoleTypeId = 6
+            fxTransferParticipant ftp
+            ON ftp.commitRequestId = fxt1.commitRequestId AND ftp.transferParticipantRoleTypeId = 6
           LEFT JOIN
-        externalParticipant ep
-        ON ftp.externalParticipantId = ep.externalParticipantId
+            externalParticipant ep
+            ON ftp.externalParticipantId = ep.externalParticipantId
           LEFT JOIN
-        transactionReference tr
-        ON tr.transactionReferenceId = fxt1.determiningTransferId
+            transactionReference tr
+            ON tr.transactionReferenceId = fxt1.determiningTransferId
           LEFT JOIN
-        quote q
-        ON q.quoteId = tr.quoteId
+            quote q
+            ON q.quoteId = tr.quoteId
           LEFT JOIN
-        quoteParty initiatingQuoteParty
-        ON initiatingQuoteParty.quoteId = q.quoteId
-        AND initiatingQuoteParty.transferParticipantRoleTypeId = 1
+            quoteParty initiatingQuoteParty
+            ON initiatingQuoteParty.quoteId = q.quoteId
+            AND initiatingQuoteParty.transferParticipantRoleTypeId = 1
           ) AS combined
           INNER JOIN
-          participantCurrency AS pc
-          ON pc.participantCurrencyId = combined.participantCurrencyId
+              participantCurrency AS pc
+              ON pc.participantCurrencyId = combined.participantCurrencyId
           WHERE combined.change > 0
           ORDER BY combined.transferId
         ) as result1
@@ -239,98 +239,98 @@ spec:
           combined.receiverName
           FROM (
           SELECT
-        ppc.participantCurrencyId,
-        tf.transferId,
-        tf.transferId AS uniqueLegId,
-        COALESCE(ep.name, pc.participantId) as pid,
-        ep.externalParticipantId,
-        ppc.change,
-        FALSE as isFxTransfer,
-        payeeQuoteParty.partyIdentifierValue as receiverAccountId,
-        payeeQuoteParty.partyName as receiverName
+            ppc.participantCurrencyId,
+            tf.transferId,
+            tf.transferId AS uniqueLegId,
+            COALESCE(ep.name, pc.participantId) as pid,
+            ep.externalParticipantId,
+            ppc.change,
+            FALSE as isFxTransfer,
+            payeeQuoteParty.partyIdentifierValue as receiverAccountId,
+            payeeQuoteParty.partyName as receiverName
           FROM
-        transferFulfilment AS tf
+            transferFulfilment AS tf
           INNER JOIN
-        transferStateChange AS tsc
-        ON tsc.transferId = tf.transferId
+            transferStateChange AS tsc
+            ON tsc.transferId = tf.transferId
           INNER JOIN
-        participantPositionChange AS ppc
-        ON ppc.transferStateChangeId = tsc.transferStateChangeId
+            participantPositionChange AS ppc
+            ON ppc.transferStateChangeId = tsc.transferStateChangeId
           INNER JOIN
-        settlementParticipantCurrency AS spc
-        ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            settlementParticipantCurrency AS spc
+            ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
           INNER JOIN
-        settlementSettlementWindow ssw
-        ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            settlementSettlementWindow ssw
+            ON tf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
           LEFT JOIN
-        participantCurrency pc
-        ON pc.participantCurrencyId = ppc.participantCurrencyId
+            participantCurrency pc
+            ON pc.participantCurrencyId = ppc.participantCurrencyId
           LEFT JOIN
-        transferParticipant tp
-        ON tp.transferId = tf.transferId AND tp.transferParticipantRoleTypeId = 2
+            transferParticipant tp
+            ON tp.transferId = tf.transferId AND tp.transferParticipantRoleTypeId = 2
           LEFT JOIN
-        externalParticipant ep
-        ON tp.externalParticipantId = ep.externalParticipantId
+            externalParticipant ep
+            ON tp.externalParticipantId = ep.externalParticipantId
           LEFT JOIN
-        transactionReference tr
-        ON tr.transactionReferenceId = tf.transferId
+            transactionReference tr
+            ON tr.transactionReferenceId = tf.transferId
           LEFT JOIN
-        quote q
-        ON q.quoteId = tr.quoteId
+            quote q
+            ON q.quoteId = tr.quoteId
           LEFT JOIN
-        quoteParty payeeQuoteParty
-        ON payeeQuoteParty.quoteId = q.quoteId
-        AND payeeQuoteParty.transferParticipantRoleTypeId = 2
+            quoteParty payeeQuoteParty
+            ON payeeQuoteParty.quoteId = q.quoteId
+            AND payeeQuoteParty.transferParticipantRoleTypeId = 2
 
           UNION ALL
 
           SELECT
-        ppc.participantCurrencyId,
-        fxt1.determiningTransferId AS transferId,
-        fxt1.commitRequestId AS uniqueLegId,
-        COALESCE(ep.name, pc.participantId) as pid,
-        ep.externalParticipantId,
-        ppc.change,
-        TRUE as isFxTransfer,
-        counterpartyQuoteParty.partyIdentifierValue as receiverAccountId,
-        counterpartyQuoteParty.partyName as receiverName
+            ppc.participantCurrencyId,
+            fxt1.determiningTransferId AS transferId,
+            fxt1.commitRequestId AS uniqueLegId,
+            COALESCE(ep.name, pc.participantId) as pid,
+            ep.externalParticipantId,
+            ppc.change,
+            TRUE as isFxTransfer,
+            counterpartyQuoteParty.partyIdentifierValue as receiverAccountId,
+            counterpartyQuoteParty.partyName as receiverName
           FROM
-        fxTransferFulfilment AS fxtf
+            fxTransferFulfilment AS fxtf
           INNER JOIN
-        fxTransfer AS fxt1
-        ON fxt1.commitRequestId = fxtf.commitRequestId
+            fxTransfer AS fxt1
+            ON fxt1.commitRequestId = fxtf.commitRequestId
           INNER JOIN
-        fxTransferStateChange AS fxtsc
-        ON fxtsc.commitRequestId = fxtf.commitRequestId
+            fxTransferStateChange AS fxtsc
+            ON fxtsc.commitRequestId = fxtf.commitRequestId
           INNER JOIN
-        participantPositionChange AS ppc
-        ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
+            participantPositionChange AS ppc
+            ON ppc.fxTransferStateChangeId = fxtsc.fxTransferStateChangeId
           INNER JOIN
-        settlementParticipantCurrency AS spc
-        ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
+            settlementParticipantCurrency AS spc
+            ON ppc.participantCurrencyId = spc.participantCurrencyId AND spc.settlementId = :settlementId
           INNER JOIN
-        settlementSettlementWindow ssw
-        ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
+            settlementSettlementWindow ssw
+            ON fxtf.settlementWindowId = ssw.settlementWindowId AND ssw.settlementId = :settlementId
           LEFT JOIN
-        participantCurrency pc
-        ON pc.participantCurrencyId = ppc.participantCurrencyId
+            participantCurrency pc
+            ON pc.participantCurrencyId = ppc.participantCurrencyId
           LEFT JOIN
-        fxTransferParticipant ftp
-        ON ftp.commitRequestId = fxt1.commitRequestId AND ftp.transferParticipantRoleTypeId = 7
-        AND (ftp.participantCurrencyId IS NULL OR ftp.participantCurrencyId = pc.participantCurrencyId)
+            fxTransferParticipant ftp
+            ON ftp.commitRequestId = fxt1.commitRequestId AND ftp.transferParticipantRoleTypeId = 7
+            AND (ftp.participantCurrencyId IS NULL OR ftp.participantCurrencyId = pc.participantCurrencyId)
           LEFT JOIN
-        externalParticipant ep
-        ON ftp.externalParticipantId = ep.externalParticipantId
+            externalParticipant ep
+            ON ftp.externalParticipantId = ep.externalParticipantId
           LEFT JOIN
-        transactionReference tr
-        ON tr.transactionReferenceId = fxt1.determiningTransferId
+            transactionReference tr
+            ON tr.transactionReferenceId = fxt1.determiningTransferId
           LEFT JOIN
-        quote q
-        ON q.quoteId = tr.quoteId
+            quote q
+            ON q.quoteId = tr.quoteId
           LEFT JOIN
-        quoteParty counterpartyQuoteParty
-        ON counterpartyQuoteParty.quoteId = q.quoteId
-        AND counterpartyQuoteParty.transferParticipantRoleTypeId = 2
+            quoteParty counterpartyQuoteParty
+            ON counterpartyQuoteParty.quoteId = q.quoteId
+            AND counterpartyQuoteParty.transferParticipantRoleTypeId = 2
           ) AS combined
           INNER JOIN
           participantCurrency AS pc
@@ -342,22 +342,22 @@ spec:
 
         LEFT JOIN (
           SELECT
-        COALESCE(tsc.transferId, fxt.determiningTransferId) AS transferId,
-        MAX(COALESCE(tsc.createdDate, fxtsc.createdDate)) AS latestStateChangeDate
-        FROM transferStateChange AS tsc
-        LEFT JOIN fxTransferStateChange AS fxtsc
-        ON tsc.transferId = fxtsc.commitRequestId
-        LEFT JOIN fxTransfer AS fxt
-        ON fxtsc.commitRequestId = fxt.commitRequestId
+            COALESCE(tsc.transferId, fxt.determiningTransferId) AS transferId,
+            MAX(COALESCE(tsc.createdDate, fxtsc.createdDate)) AS latestStateChangeDate
+            FROM transferStateChange AS tsc
+            LEFT JOIN fxTransferStateChange AS fxtsc
+            ON tsc.transferId = fxtsc.commitRequestId
+            LEFT JOIN fxTransfer AS fxt
+            ON fxtsc.commitRequestId = fxt.commitRequestId
         WHERE (
           tsc.transferId IN (
             SELECT transferId FROM transferFulfilment WHERE settlementWindowId IN (
-          SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+              SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
             )
           )
           OR fxtsc.commitRequestId IN (
             SELECT commitRequestId FROM fxTransferFulfilment WHERE settlementWindowId IN (
-          SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
+              SELECT settlementWindowId FROM settlementSettlementWindow WHERE settlementId = :settlementId
             )
           )
         )
