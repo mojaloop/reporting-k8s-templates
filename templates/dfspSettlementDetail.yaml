@@ -106,6 +106,7 @@ spec:
             FALSE as isFxTransfer,
             payerQuoteParty.partyIdentifierValue as senderAccountId,
             payerQuoteParty.partyName as senderName,
+            payerIdentifierType.name as senderAccountType,
             COALESCE(te.value, q.note) as narration
           FROM transferFulfilment tf
           INNER JOIN transferStateChange tsc ON tsc.transferId = tf.transferId
@@ -118,6 +119,7 @@ spec:
           LEFT JOIN transactionReference tr ON tr.transactionReferenceId = tf.transferId
           LEFT JOIN quote q ON q.quoteId = tr.quoteId
           LEFT JOIN quoteParty payerQuoteParty ON payerQuoteParty.quoteId = q.quoteId AND payerQuoteParty.transferParticipantRoleTypeId = 1
+          LEFT JOIN partyIdentifierType payerIdentifierType ON payerQuoteParty.partyIdentifierTypeId = payerIdentifierType.partyIdentifierTypeId
           LEFT JOIN (
             SELECT transferId, value
             FROM transferExtension
@@ -138,6 +140,7 @@ spec:
             TRUE as isFxTransfer,
             initiatingQuoteParty.partyIdentifierValue as senderAccountId,
             initiatingQuoteParty.partyName as senderName,
+            initiatorIdentifierType.name as senderAccountType,
             COALESCE(te.value, q.note) as narration
           FROM fxTransferFulfilment fxtf
           INNER JOIN fxTransfer fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
@@ -151,6 +154,7 @@ spec:
           LEFT JOIN transactionReference tr ON tr.transactionReferenceId = fxt1.determiningTransferId
           LEFT JOIN quote q ON q.quoteId = tr.quoteId
           LEFT JOIN quoteParty initiatingQuoteParty ON initiatingQuoteParty.quoteId = q.quoteId AND initiatingQuoteParty.transferParticipantRoleTypeId = 1
+          LEFT JOIN partyIdentifierType initiatorIdentifierType ON initiatingQuoteParty.partyIdentifierTypeId = initiatorIdentifierType.partyIdentifierTypeId
           LEFT JOIN (
             SELECT commitRequestId, value
             FROM fxTransferExtension
@@ -170,7 +174,8 @@ spec:
             ppc.change as amount,
             FALSE as isFxTransfer,
             payeeQuoteParty.partyIdentifierValue as receiverAccountId,
-            payeeQuoteParty.partyName as receiverName
+            payeeQuoteParty.partyName as receiverName,
+            payeeIdentifierType.name as receiverAccountType
           FROM transferFulfilment tf
           INNER JOIN transferStateChange tsc ON tsc.transferId = tf.transferId
           INNER JOIN participantPositionChange ppc ON ppc.transferStateChangeId = tsc.transferStateChangeId
@@ -182,6 +187,7 @@ spec:
           LEFT JOIN transactionReference tr ON tr.transactionReferenceId = tf.transferId
           LEFT JOIN quote q ON q.quoteId = tr.quoteId
           LEFT JOIN quoteParty payeeQuoteParty ON payeeQuoteParty.quoteId = q.quoteId AND payeeQuoteParty.transferParticipantRoleTypeId = 2
+          LEFT JOIN partyIdentifierType payeeIdentifierType ON payeeQuoteParty.partyIdentifierTypeId = payeeIdentifierType.partyIdentifierTypeId
           WHERE ppc.change < 0
 
           UNION ALL
@@ -195,7 +201,8 @@ spec:
             ppc.change as amount,
             TRUE as isFxTransfer,
             counterpartyQuoteParty.partyIdentifierValue as receiverAccountId,
-            counterpartyQuoteParty.partyName as receiverName
+            counterpartyQuoteParty.partyName as receiverName,
+            counterpartyIdentifierType.name as receiverAccountType
           FROM fxTransferFulfilment fxtf
           INNER JOIN fxTransfer fxt1 ON fxt1.commitRequestId = fxtf.commitRequestId
           INNER JOIN fxTransferStateChange fxtsc ON fxtsc.commitRequestId = fxtf.commitRequestId
@@ -208,6 +215,7 @@ spec:
           LEFT JOIN transactionReference tr ON tr.transactionReferenceId = fxt1.determiningTransferId
           LEFT JOIN quote q ON q.quoteId = tr.quoteId
           LEFT JOIN quoteParty counterpartyQuoteParty ON counterpartyQuoteParty.quoteId = q.quoteId AND counterpartyQuoteParty.transferParticipantRoleTypeId = 2
+          LEFT JOIN partyIdentifierType counterpartyIdentifierType ON counterpartyQuoteParty.partyIdentifierTypeId = counterpartyIdentifierType.partyIdentifierTypeId
           WHERE ppc.change < 0
         )
         SELECT
@@ -223,7 +231,9 @@ spec:
           c.receiverAccountId,
           d.senderName,
           c.receiverName,
-          d.narration
+          d.narration,
+          d.senderAccountType,
+          c.receiverAccountType
         FROM debtor_data d
         INNER JOIN creditor_data c ON d.transferId = c.transferId AND d.uniqueLegId = c.uniqueLegId
         WHERE (d.participantCurrencyId IN (SELECT participantCurrencyId FROM target_participant_currencies)
@@ -446,10 +456,12 @@ spec:
       tableColumns: [
         { key: "senderFspName", label: "Sender FSP Name" },
         { key: "senderExternalFspName", label: "Sender External FSP Name" },
+        { key: "senderAccountType", label: "Sender Account Type" },
         { key: "senderAccountId", label: "Sender Account ID" },
         { key: "senderName", label: "Sender Name" },
         { key: "receiverFspName", label: "Receiver FSP Name" },
         { key: "receiverExternalFspName", label: "Receiver External FSP Name" },
+        { key: "receiverAccountType", label: "Receiver Account Type" },
         { key: "receiverAccountId", label: "Receiver Account ID" },
         { key: "receiverName", label: "Receiver Name" },
         { key: "transferId", label: "Transfer ID" },
@@ -467,10 +479,12 @@ spec:
         return {
         senderFspName: senderCurrency ? senderCurrency.name : 'N/A',
         senderExternalFspName: tx.debtorExternalParticipantId ? (externalParticipantIdMap[tx.debtorExternalParticipantId]?.externalParticipantName || 'N/A') : 'N/A',
+        senderAccountType: tx.senderAccountType || 'N/A',
         senderAccountId: tx.senderAccountId || 'N/A',
         senderName: tx.senderName || 'N/A',
         receiverFspName: receiverCurrency ? receiverCurrency.name : 'N/A',
         receiverExternalFspName: tx.creditorExternalParticipantId ? (externalParticipantIdMap[tx.creditorExternalParticipantId]?.externalParticipantName || 'N/A') : 'N/A',
+        receiverAccountType: tx.receiverAccountType || 'N/A',
         receiverAccountId: tx.receiverAccountId || 'N/A',
         receiverName: tx.receiverName || 'N/A',
         transferId: tx.transferId || 'N/A',
@@ -512,7 +526,7 @@ spec:
             {{- if .Values.templates.titles.dfspSettlementDetail -}}
               {{ .Values.templates.titles.dfspSettlementDetail }}
             {{- else -}}
-              DFSP Settlement Detail Optimized
+              DFSP Settlement Detail
             {{- end -}}
             <%= selectedParticipant && selectedParticipant[0] ? ' for ' + selectedParticipant[0].name : '' %>
 
