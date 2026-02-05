@@ -582,12 +582,13 @@ spec:
             <% } %>
           </tbody>
         </table>
-
+        <!--
         <pre>
           <code>
           <%= JSON.stringify(settlementParticipantCurrencyIdsResult, null, 2) %>
           </code>
         </pre>
+        -->
         <!-- Footer Section -->
         <div class="footer">
             <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>
