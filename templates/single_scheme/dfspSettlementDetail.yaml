@@ -97,6 +97,9 @@ spec:
             payerQuoteParty.partyIdentifierValue as transferSenderId,
             payerQuoteParty.partyName as transferSenderName,
             payerIdentifierType.name as transferSenderIdType,
+            payerParty.firstName as transferSenderFirstName,
+            payerParty.middleName as transferSenderMiddleName,
+            payerParty.lastName as transferSenderLastName,
             NULL as fxTransferInitiatingPartyFspName,
             MAX(tsc.createdDate) OVER (PARTITION BY tf.transferId) as latestStateChangeDate
           FROM transferFulfilment tf
@@ -110,6 +113,7 @@ spec:
           LEFT JOIN transactionReference tr ON tr.transactionReferenceId = tf.transferId
           LEFT JOIN quote q ON q.quoteId = tr.quoteId
           LEFT JOIN quoteParty payerQuoteParty ON payerQuoteParty.quoteId = q.quoteId AND payerQuoteParty.transferParticipantRoleTypeId = 1
+          LEFT JOIN party payerParty ON payerParty.quotePartyId = payerQuoteParty.quotePartyId
           LEFT JOIN partyIdentifierType payerIdentifierType ON payerQuoteParty.partyIdentifierTypeId = payerIdentifierType.partyIdentifierTypeId
           WHERE ppc.change > 0
 
@@ -127,6 +131,9 @@ spec:
             NULL as transferSenderId,
             NULL as transferSenderName,
             NULL as transferSenderIdType,
+            NULL as transferSenderFirstName,
+            NULL as transferSenderMiddleName,
+            NULL as transferSenderLastName,
             fxqct.initiatingFsp as fxTransferInitiatingPartyFspName,
             MAX(fxtsc.createdDate) OVER (PARTITION BY fxt1.commitRequestId) as latestStateChangeDate
           FROM fxTransferFulfilment fxtf
@@ -154,6 +161,9 @@ spec:
             FALSE as isFxTransfer,
             payeeQuoteParty.partyIdentifierValue as transferReceiverId,
             payeeQuoteParty.partyName as transferReceiverName,
+            payeeParty.firstName as transferReceiverFirstName,
+            payeeParty.middleName as transferReceiverMiddleName,
+            payeeParty.lastName as transferReceiverLastName,
             payeeIdentifierType.name as transferReceiverIdType,
             NULL as fxTransferCounterPartyFspName,
             MAX(tsc.createdDate) OVER (PARTITION BY tf.transferId) as latestStateChangeDate
@@ -168,6 +178,7 @@ spec:
           LEFT JOIN transactionReference tr ON tr.transactionReferenceId = tf.transferId
           LEFT JOIN quote q ON q.quoteId = tr.quoteId
           LEFT JOIN quoteParty payeeQuoteParty ON payeeQuoteParty.quoteId = q.quoteId AND payeeQuoteParty.transferParticipantRoleTypeId = 2
+          LEFT JOIN party payeeParty ON payeeParty.quotePartyId = payeeQuoteParty.quotePartyId
           LEFT JOIN partyIdentifierType payeeIdentifierType ON payeeQuoteParty.partyIdentifierTypeId = payeeIdentifierType.partyIdentifierTypeId
           WHERE ppc.change < 0
 
@@ -184,6 +195,9 @@ spec:
             NULL as transferReceiverId,
             NULL as transferReceiverName,
             NULL as transferReceiverIdType,
+            NULL as transferReceiverFirstName,
+            NULL as transferReceiverMiddleName,
+            NULL as transferReceiverLastName,
             fxqct.counterPartyFsp as fxTransferCounterPartyFspName,
             MAX(fxtsc.createdDate) OVER (PARTITION BY fxt1.commitRequestId) as latestStateChangeDate
           FROM fxTransferFulfilment fxtf
@@ -213,6 +227,12 @@ spec:
           c.transferReceiverName,
           d.transferSenderIdType,
           c.transferReceiverIdType,
+          d.transferSenderFirstName,
+          c.transferReceiverFirstName,
+          d.transferSenderMiddleName,
+          c.transferReceiverMiddleName,
+          d.transferSenderLastName,
+          c.transferReceiverLastName,
           d.fxTransferInitiatingPartyFspName,
           c.fxTransferCounterPartyFspName,
           COALESCE(d.transferCreatedDate, c.transferCreatedDate) as transferCreatedDate,
@@ -481,11 +501,11 @@ spec:
           senderFspName: senderCurrency ? senderCurrency.name : 'N/A',
           senderIdType: tx.isFxTransfer ? ('N/A') : (tx.transferSenderIdType || 'N/A'),
           senderId: tx.isFxTransfer ? ('N/A') : (tx.transferSenderId || 'N/A'),
-          senderName: tx.isFxTransfer ? 'N/A' : (tx.transferSenderName || 'N/A'),
+          senderName: tx.isFxTransfer ? 'N/A' : (tx.transferSenderName || [tx.transferSenderFirstName, tx.transferSenderMiddleName, tx.transferSenderLastName].filter(Boolean).join(' ') || 'N/A'),
           receiverFspName: receiverCurrency ? receiverCurrency.name : 'N/A',
           receiverIdType: tx.isFxTransfer ? ('N/A') : (tx.transferReceiverIdType || 'N/A'),
           receiverId: tx.isFxTransfer ? ('N/A') : (tx.transferReceiverId || 'N/A'),
-          receiverName: tx.isFxTransfer ? 'N/A' : (tx.transferReceiverName || 'N/A'),
+          receiverName: tx.isFxTransfer ? 'N/A' : (tx.transferReceiverName || [tx.transferReceiverFirstName, tx.transferReceiverMiddleName, tx.transferReceiverLastName].filter(Boolean).join(' ') || 'N/A'),
           transferId: tx.transferId || 'N/A',
           txType: tx.isFxTransfer ? 'Currency Conversion' : 'Transfer',
           txNature: tx.isFxTransfer ? 'Payer initiated' : 'N/A',
@@ -582,12 +602,13 @@ spec:
             <% } %>
           </tbody>
         </table>
-
+        <!-- Raw JSON Data Section
         <pre>
           <code>
           <%= JSON.stringify(settlementParticipantCurrencyIdsResult, null, 2) %>
           </code>
         </pre>
+        -->
         <!-- Footer Section -->
         <div class="footer">
             <p>Generated on: <%= (new Date()).toLocaleString(undefined, { timeZoneName: 'shortOffset' }) %></p>
